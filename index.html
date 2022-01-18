@@ -19,6 +19,7 @@
     <div>
 		<input type="file">
     </div>
+    <div id="message"></div>
 
     <script type="text/javascript">
 		let input = document.querySelector('input');
@@ -68,7 +69,7 @@
 
 			var outp=Module.getValue(buf, 'i32');
 			Module._free(buf);
-			
+
 			var view=Module.HEAPU8.slice(outp, outp+outLength);
 			Module._free(outp);
 			return view.buffer;
@@ -82,15 +83,15 @@
 
 				this.data=new DataView(buffer);
 			}
-			
+
 			append(buffer){
 				var oldBuf=this.buffer;
 				this.buffer=new ArrayBuffer(oldBuf.byteLength+buffer.byteLength);
-				
+
 				var ia=new Uint8Array(this.buffer);
 				ia.set(new Uint8Array(oldBuf), 0);
 				ia.set(new Uint8Array(buffer), oldBuf.byteLength);
-				
+
 				this.data=new DataView(this.buffer);
 			}
 
@@ -215,7 +216,7 @@
 			}
 
 			prepareInjectionSection(addr){//TODO automatic injection address
-				
+
 				if(addr%4!=0){
 					throw("Section must be 4 byte aligned");
 				}
@@ -227,32 +228,32 @@
 				//this.injectionSection=new DOLSection(new ArrayBuffer(0), addr, "text");
 				//this.sections.push(this.injectionSection);
 			}
-			
+
 			calculateRelocation(current, base){
 				var addr=current&0x3FFFFFF;
 				var bAddr=base&0x3FFFFFF;
-				
+
 				return (current&0xFC000000)|((current-base)&0x3FFFFFF);
 			}
-			
+
 			inject(addr, code, relocations=[]){//TODO relocations
 				if(!this.injectionSection){
 					throw("Must prepare injection section before injection");
 				}
-				
+
 				if(addr % 4!=0){
 					throw("Must inject at a 4 byte alignment");
 				}
-				
+
 				const branchOpcode=0x48000000;
 
 				var section=this.getSection(addr, 4);
-				
+
 				var oldInstruction=section.read4(addr);
-				
+
 				var branchOffset=(this.injectionBase-addr);
 				var branchInstruction=branchOpcode|(branchOffset&0x03FFFFFF);
-				
+
 				var returnOffset=-(branchOffset+code.byteLength);
 				var branchReturn=branchOpcode|(returnOffset&0x03FFFFFF);
 
@@ -262,17 +263,17 @@
 
 				nd.setUint32(code.byteLength, oldInstruction, false);
 				nd.setUint32(code.byteLength+4, branchReturn, false);
-				
+
 				for(var reloc of relocations){
 					var current=nd.getUint32(reloc, false);
 					var inst=this.calculateRelocation(current, this.injectionBase+reloc);
 					nd.setUint32(reloc, inst, false);
 				}
-				
+
 				new Uint8Array(this.injectionSection.buffer).set(new Uint8Array(newBuf), this.injectionBase-this.injectionSection.addr);
-				
+
 				this.injectionBase+=newBuf.byteLength;
-				
+
 				section.write4(addr, branchInstruction);
 
 			}
@@ -309,11 +310,11 @@
 			read(addr){
 				return this.getSection(addr, 1).read(addr);
 			}
-			
+
 			write4(addr, value){
 				return this.getSection(addr, 1).write4(addr, value);
 			}
-			
+
 			write2(addr, value){
 				return this.getSection(addr, 1).write2(addr, value);
 			}
@@ -401,7 +402,7 @@
 				this.buffer=buffer;
 				this.data=new DataView(buffer);
 			}
-			
+
 			decompressSKASC(){
 				this.replace(decompress(new Uint8Array(this.buffer)));
 			}
@@ -549,7 +550,7 @@
 			writeEntryToBuffer(buffer, offset, entryOffset, stringsBase, stringsOffset, fileOffset, parentOffset, entry){
 				var initial=entryOffset;
 				var data=new DataView(buffer);
-				
+
 				var filesWritten=[];
 
 				var first=stringsOffset+((entry.type=="dir" ? 1 : 0)<<24);
@@ -582,7 +583,7 @@
 
 						writeBuffer(entry.file.buffer, buffer, fileOffset);
 
-						filesWritten.push([entry.file.buffer, fileOffset, entry.file.buffer.byteLength]); 
+						filesWritten.push([entry.file.buffer, fileOffset, entry.file.buffer.byteLength]);
 
 						fileOffset+=entry.file.buffer.byteLength;
 					}
@@ -682,6 +683,7 @@
 		}
 
 		var iso=null;
+		var manualMode=false;
 
 		input.addEventListener('change', () => {
 			let files = input.files;
@@ -691,20 +693,66 @@
 			const file = files[0];
 
 			let reader = new FileReader();
-
+			displayMessage("Loading");
 			reader.onload = (e) => {
 				const file = e.target.result;
 
-				iso=new GCISO(file);
+				displayMessage("Analyzing");
+				window.setTimeout(function(){
+					var niso=new GCISO(file);
 
-				console.log("ISO loaded");
-
+					if(manualMode){
+						iso=niso;
+					}else{
+						displayMessage("Decompressing");
+						window.setTimeout(function(){
+							var i=0;
+							while(i<12){
+								niso.fst.getFile("Level"+("00"+i).slice(-2)+".bin").decompressSKASC();
+								i++;
+							}
+							niso.fst.getFile("Level11.bin").decompressSKASC();
+							displayMessage("Patching");
+							window.setTimeout(function(){
+								prepare(niso);
+								bypassCompression(niso, function(){
+									stripFMV(niso);
+									
+									displayMessage("Rebuilding");
+									window.setTimeout(function(){
+										var buf=niso.toBuffer();
+										displayMessage("Downloading");
+										download(buf);
+									}, 1);
+								});
+							}, 1);
+						}, 1);
+					}
+				}, 1);
 			};
 
 			reader.onerror = (e) => alert(e.target.error.name);
 
 			reader.readAsArrayBuffer(file);
-		});		
+		});
+
+		function decompressAll(dir){
+			for(var entry of dir.entries){
+				if(entry.type=="dir"){
+					decompressAll(entry);
+				}else if(entry.type=="file"){
+					var file=entry.file;
+					if(file.read4(0)==0x2a534b5f && file.read4(4)==0x4153432a){//*SK_ASC*
+						console.log("Decompressing "+entry.name);
+						file.decompressSKASC();
+					}
+				}
+			}
+		}
+
+		function displayMessage(message){
+			document.getElementById("message").innerHTML=message;
+		}
 
 		function prepare(iso){
 			iso.dol.prepareInjectionSection(0x802fd8e0);
@@ -726,15 +774,20 @@
 					console.log("Could not load "+url);
 				}
 			});
+			xhr.addEventListener('error', function(e){
+				console.log("Error when loading "+url);
+				console.log(e);
+			});
 			xhr.open('GET', url);
 			xhr.responseType = 'blob';
 			xhr.send(null);
 		}
 
-		function bypassCompression(iso){
+		function bypassCompression(iso, continuation){
 
 			loadAsset("./compressionBypass.bin", function(code){
 				iso.dol.inject(0x80147e4c, code, [0x14, 0x34, 0x64, 0x9c, 0xb0]);
+				continuation();
 			});
 
 		}
@@ -751,13 +804,11 @@
 				try{
 					var fileA=iso.fst.getFile("fmv/fmv"+(("0000" + i).slice(-4))+".aud");
 					fileA.replace(sourceA.buffer);
-					console.log("Replace a"+i);
 				}catch(err){}//TODO proper fs errors
-				
+
 				try{
 					var fileH=iso.fst.getFile("fmv/fmv"+(("0000" + i).slice(-4))+".h4m");
 					fileH.replace(sourceH.buffer);
-					console.log("Replace h"+i);
 				}catch(err){}
 				i++;
 			}
