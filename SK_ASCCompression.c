@@ -2149,9 +2149,171 @@ unsigned int DecompressSK_ASC(unsigned char* compressedFile, unsigned int compre
 	return length-4;
 }
 
+typedef unsigned int uint;
+typedef unsigned char byte;
+typedef unsigned char bool;
+
+//Text decompression was FUN_8015cbb0
+int DecompressText(byte *param_1,uint param_2,byte *param_3)
+
+{
+  bool bVar1;
+  byte bVar2;
+  byte bVar3;
+  byte *pbVar4;
+  uint uVar5;
+  byte bVar7;
+  byte *pbVar6;
+  byte bVar9;
+  byte *pbVar8;
+  byte bVar11;
+  uint uVar10;
+  byte bVar12;
+  byte bVar14;
+  int iVar13;
+  uint uVar15;
+  byte *pbVar16;
+  byte bVar17;
+  byte bVar18;
+  int iVar19;
+  int iVar20;
+  byte abStack569 [33];
+  byte abStack536 [256];
+  byte local_118 [256];
+  
+  uVar5 = 0;
+  iVar19 = 0;
+  pbVar4 = param_3;
+LAB_8015cd94:
+  if (param_2 <= uVar5) {
+    //FUN_8020b740(param_3,iVar19);
+    return iVar19;
+  }
+  bVar2 = *param_1;
+  pbVar16 = local_118;
+  bVar14 = 0;
+  iVar20 = 0x10;
+  do {
+    *pbVar16 = bVar14;
+    pbVar16[1] = bVar14 + 1;
+    pbVar16[2] = bVar14 + 2;
+    bVar17 = bVar14 + 9;
+    bVar18 = bVar14 + 10;
+    pbVar16[3] = bVar14 + 3;
+    bVar12 = bVar14 + 0xb;
+    pbVar16[4] = bVar14 + 4;
+    bVar11 = bVar14 + 0xc;
+    pbVar16[5] = bVar14 + 5;
+    bVar9 = bVar14 + 0xd;
+    pbVar16[6] = bVar14 + 6;
+    bVar7 = bVar14 + 0xe;
+    pbVar16[7] = bVar14 + 7;
+    bVar3 = bVar14 + 0xf;
+    pbVar16[8] = bVar14 + 8;
+    bVar14 = bVar14 + 0x10;
+    pbVar16[9] = bVar17;
+    pbVar16[10] = bVar18;
+    pbVar16[0xb] = bVar12;
+    pbVar16[0xc] = bVar11;
+    pbVar16[0xd] = bVar9;
+    pbVar16[0xe] = bVar7;
+    pbVar16[0xf] = bVar3;
+    pbVar16 = pbVar16 + 0x10;
+    iVar20 = iVar20 + -1;
+  } while (iVar20 != 0);
+  uVar10 = 0;
+  while( 1 ) {
+    uVar15 = (uint)bVar2;
+    uVar5 = uVar5 + 1;
+    param_1 = param_1 + 1;
+    if (0x7f < uVar15) {
+      iVar20 = uVar15 + uVar10;
+      uVar15 = 0;
+      uVar10 = iVar20 - 0x7f;
+    }
+    if (uVar10 == 0x100) break;
+    iVar20 = uVar15 + 1;
+    pbVar6 = local_118 + uVar10;
+    pbVar8 = abStack536 + uVar10;
+    pbVar16 = param_1;
+    uVar15 = uVar5;
+    do {
+      param_1 = pbVar16 + 1;
+      uVar5 = uVar15 + 1;
+      *pbVar6 = *pbVar16;
+      if (uVar10 != *pbVar6) {
+        bVar2 = *param_1;
+        uVar5 = uVar15 + 2;
+        param_1 = pbVar16 + 2;
+        *pbVar8 = bVar2;
+      }
+      pbVar6 = pbVar6 + 1;
+      pbVar8 = pbVar8 + 1;
+      uVar10 = uVar10 + 1;
+      iVar20 = iVar20 + -1;
+      pbVar16 = param_1;
+      uVar15 = uVar5;
+    } while (iVar20 != 0);
+    if (uVar10 == 0x100) break;
+    bVar2 = *param_1;
+  }
+  bVar2 = *param_1;
+  iVar20 = 0;
+  pbVar16 = param_1 + 1;
+  uVar5 = uVar5 + 2;
+  param_1 = param_1 + 2;
+  iVar13 = (uint)bVar2 * 0x100 + (uint)*pbVar16;
+LAB_8015cd28:
+  if (iVar20 == 0) {
+    bVar1 = iVar13 == 0;
+    iVar13 = iVar13 + -1;
+    if (bVar1) goto LAB_8015cd94;
+    bVar2 = *param_1;
+    uVar5 = uVar5 + 1;
+    param_1 = param_1 + 1;
+  }
+  else {
+    bVar2 = abStack569[iVar20];
+    iVar20 = iVar20 + -1;
+  }
+  uVar10 = (uint)bVar2;
+  bVar14 = local_118[uVar10];
+  if (uVar10 == bVar14) {
+    *pbVar4 = bVar2;
+    pbVar4 = pbVar4 + 1;
+    iVar19 = iVar19 + 1;
+  }
+  else {
+    (abStack569 + 1)[iVar20] = abStack536[uVar10];
+    (abStack569 + 1)[iVar20 + 1] = bVar14;
+    iVar20 = iVar20 + 2;
+  }
+  goto LAB_8015cd28;
+}
+
 
 int main(int argc, char ** argv){
 	void * ob;
+	
+	if(argc==3){
+		FILE * fh=fopen(argv[1], "rb");
+	
+		fseek(fh, 0, SEEK_END);
+		unsigned int fileSize = ftell(fh);
+		fseek(fh, 0, SEEK_SET);
+		unsigned char *buf2=(unsigned char*)malloc(fileSize);
+		
+		if(fread(buf2, fileSize, 1, fh)!=1){
+			exit(1);
+		}
+		int length=atoi(argv[2]);
+		
+		unsigned char *out=(unsigned char*)malloc(length*2);
+		DecompressText(buf2, length, out);
+
+		fwrite(out+0x1a, length, 1, stdout);
+		return 0;
+	}
 
 	if(argc!=2){
 		exit(1);

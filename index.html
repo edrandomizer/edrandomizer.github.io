@@ -2,7 +2,7 @@
 <html>
 
 <head>
-    <title>ED Random Alpha 0.1</title>
+    <title>Eternal Darkness Random</title>
     <meta charset="utf-8">
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0">
@@ -73,6 +73,20 @@
 			var view=Module.HEAPU8.slice(outp, outp+outLength);
 			Module._free(outp);
 			return view.buffer;
+		}
+
+		function decompressText(compressed, decompressedLength){
+			var buf = Module._malloc(compressed.length*compressed.BYTES_PER_ELEMENT);
+			Module.HEAPU8.set(compressed, buf);
+			var out = Module._malloc(decompressedLength*2);
+
+			var r=Module.ccall('DecompressText', 'number', ['number', 'number', 'number'], [buf, decompressedLength, out]);
+			var view=Module.HEAPU8.slice(out+0x1a, out+decompressedLength*2+0x1a);
+			Module._free(buf);
+			Module._free(out);
+			var od=new Uint8Array(view);
+			view=view.slice(0, od.indexOf(0));
+			return String.fromCharCode.apply(String, view);
 		}
 
 		class DOLSection {
@@ -355,6 +369,128 @@
 			}
 
 		}
+		
+		class GPK{
+			constructor(buffer){
+				
+				if(!buffer){
+					this.entries=[];
+					this.entryCount=0;
+					return;
+				}
+				const raw=new DataView(buffer);
+				
+				if(raw.getUint32(4, false)!=0x6b5){
+					throw "Incorrect magic number in gpk";
+				}
+				
+				this.entryCount=raw.getUint32(0, false);
+				
+				this.entries=[];
+				
+				var i=0;
+				while(i<this.entryCount){
+					var offset=raw.getUint32(8+i*8, false);
+					var size=raw.getUint32(12+i*8, false);
+					
+					if(offset!=0 && size!=0){
+						if(raw.getUint32(offset+4, false)==0xfb90){
+							var sCount=raw.getUint32(offset, false);
+							var j=0;
+							var strings=[];
+							while(j<sCount){
+								var sOffset=raw.getUint32(offset+8+j*8, false);
+								var sSize=raw.getUint32(offset+12+j*8, false);
+								
+								if(sSize!=0 && sOffset!=0){
+									strings[j]=buffer.slice(offset+sOffset, offset+sOffset+sSize);
+								}
+
+								j++;
+							}
+							this.entries[i]=strings;
+						}else{
+							this.entries[i]=buffer.slice(offset, offset+size);
+						}
+					}
+					i++;
+				}
+			}
+
+			getSize(){
+				var size=8+8*this.entryCount;
+				for(var ent of this.entries){
+					if(Array.isArray(ent)){
+						size+=8+ent.length*8;
+						for(var s of ent){
+							if(s){
+								size+=s.byteLength;
+							}
+						}
+					}else if(ent){
+						size+=ent.byteLength;
+					}
+				}
+				return size;
+			}
+
+			toBuffer(){
+
+				this.entryCount=this.entries.length;
+
+				var out=new ArrayBuffer(this.getSize());
+				var d=new DataView(out);
+				var u=new Uint8Array(out);
+				
+				d.setUint32(0, this.entryCount, false);
+				d.setUint32(4, 0x6b5, false);
+				
+				var curOff=8+this.entryCount*8;
+				
+				var i=0;
+				while(i<this.entryCount){
+					var ent=this.entries[i];
+					if(!ent){
+						d.setUint32(8+i*8, 0, false);
+						d.setUint32(12+i*8, 0, false);
+					}else if(Array.isArray(ent)){
+						d.setUint32(8+i*8, curOff, false);
+						d.setUint32(12+i*8, 8, false);
+
+						var tBase=curOff;
+						curOff+=8+ent.length*8;
+
+						d.setUint32(tBase, ent.length, false);
+						d.setUint32(tBase+4, 0xfb90, false);
+
+						var j=0;
+						while(j<ent.length){
+							if(ent[j]){
+								d.setUint32(tBase+8+j*8, curOff-tBase, false);
+								d.setUint32(tBase+12+j*8, ent[j].byteLength, false);
+
+								u.set(new Uint8Array(ent[j]), curOff);
+								curOff+=ent[j].byteLength;
+								
+							}else{
+								d.setUint32(tBase+8+j*8, 0, false);
+								d.setUint32(tBase+12+j*8, 0, false);
+							}
+							j++;
+						}
+					}else{
+						d.setUint32(8+i*8, curOff, false);
+						d.setUint32(12+i*8, ent.byteLength, false);
+						
+						u.set(new Uint8Array(ent), curOff);
+						curOff+=ent.byteLength;
+					}
+					i++;
+				}
+				return out;
+			}
+			
+		}
 
 		class File{
 			constructor(buffer){
@@ -404,7 +540,9 @@
 			}
 
 			decompressSKASC(){
-				this.replace(decompress(new Uint8Array(this.buffer)));
+				if(this.read4(0)==0x2a534b5f && this.read4(4)==0x4153432a){//*SK_ASC*
+					this.replace(decompress(new Uint8Array(this.buffer)));
+				}
 			}
 
 		}
@@ -659,8 +797,6 @@
 					console.log("Bad file size, are you sure this is a gamecube iso?");
 				}
 
-				this.data=new DataView(buffer);
-
 				this.header=new Header(buffer);
 
 				this.dol=new DOL(buffer.slice(this.header.dolOffset));
@@ -703,29 +839,21 @@
 
 					if(manualMode){
 						iso=niso;
+						displayMessage("Ready");
 					}else{
-						displayMessage("Decompressing");
+						displayMessage("Patching");
 						window.setTimeout(function(){
-							var i=0;
-							while(i<12){
-								niso.fst.getFile("Level"+("00"+i).slice(-2)+".bin").decompressSKASC();
-								i++;
-							}
-							niso.fst.getFile("Level11.bin").decompressSKASC();
-							displayMessage("Patching");
-							window.setTimeout(function(){
-								prepare(niso);
-								bypassCompression(niso, function(){
-									stripFMV(niso);
-									
-									displayMessage("Rebuilding");
-									window.setTimeout(function(){
-										var buf=niso.toBuffer();
-										displayMessage("Downloading");
-										download(buf);
-									}, 1);
-								});
-							}, 1);
+							prepare(niso);
+							bypassCompression(niso, function(){
+								
+								roomTextShuffle(niso);
+								displayMessage("Rebuilding");
+								window.setTimeout(function(){
+									var buf=niso.toBuffer();
+									displayMessage("Preparing download");
+									download(buf);
+								}, 1);
+							});
 						}, 1);
 					}
 				}, 1);
@@ -787,9 +915,124 @@
 
 			loadAsset("./compressionBypass.bin", function(code){
 				iso.dol.inject(0x80147e4c, code, [0x14, 0x34, 0x64, 0x9c, 0xb0]);
-				continuation();
+				if(continuation){
+					continuation();
+				}
 			});
 
+		}
+
+		function roomTextShuffle(iso){
+
+			var gpks=[];
+			var newGpks=[];
+			var entries=[];
+			var pools=[];
+			var cmps=[];
+
+			var i=0;
+			while(i<14){
+				var filename="RmTxt"+("00"+i).slice(-2)+".cmp";
+
+				var cmp=iso.fst.getFile(filename);
+				cmp.decompressSKASC();
+				
+				cmps[i]=cmp;
+
+				gpks[i]=new GPK(cmp.buffer);
+				newGpks[i]=new GPK();
+				
+				for(var fi in gpks[i].entries){
+					if(gpks[i].entries[fi]){
+						for(var si in gpks[i].entries[fi]){
+							if(gpks[i].entries[fi][si]){
+								var d=new DataView(gpks[i].entries[fi][si]);
+								var special=d.getUint32(0, false);
+								if(!pools[special]){
+									pools[special]=[];
+								}
+								if(!entries[fi]){
+									entries[fi]=[];
+								}
+								if(!entries[fi][si]){
+									entries[fi][si]=[];
+								}
+								pools[special].push([fi, si]);
+								entries[fi][si].push(i);
+							}
+						}
+					}
+				}
+				i++;
+			}
+
+			for(var special in pools){
+				var pc=pools[special].slice(0);
+				pc.sort(() => { return Math.random()-0.5;});
+				
+				for(var rIndex in pools[special]){
+					var source=pc[rIndex];
+					var dest=pools[special][rIndex];
+					
+					var sourceFi=source[0];
+					var sourceSi=source[1];
+					
+					var destFi=dest[0];
+					var destSi=dest[1];
+					
+					var data=gpks[entries[sourceFi][sourceSi][0]].entries[sourceFi][sourceSi];
+					
+					if(!data){
+						console.log(sourceFi, sourceSi, entries[sourceFi][sourceSi][0]);
+						
+					}
+					
+					for(var de of entries[destFi][destSi]){
+						if(!newGpks[de].entries[destFi]){
+							newGpks[de].entries[destFi]=[];
+						}
+						newGpks[de].entries[destFi][destSi]=data;
+					}
+					
+				}
+			}
+			for(var file in cmps){
+				cmps[file].replace(newGpks[file].toBuffer());
+			}
+
+		}
+
+		function textLookup(file, i1, i2){
+			if(file.read4(4)!=0x6b5){
+				throw "Doesn't look like an archive file, did you forget to decompress?";
+			}
+
+			if(file.read4(0)<=i1){
+				throw "First index out of bounds";
+			}
+
+			var iOffset=file.read4(8+i1*8);
+			if(iOffset==0){
+				throw "First index empty";
+			}
+
+			if(file.read4(iOffset+4)!=0xfb90){
+				throw "Not a text archive";
+			}
+
+			if(file.read4(iOffset)<=i2){
+				throw "Second index out of bounds";
+			}
+			
+			var eOffset=file.read4(iOffset+8+i2*8);
+			var size=file.read4(iOffset+12+i2*8);
+			if(eOffset==0 || size==0){
+				throw "Entry empty";
+			}
+
+			var buf=file.buffer.slice(iOffset+eOffset+4, iOffset+eOffset+size+4);
+
+			return decompressText(new Uint8Array(buf), size-4);
 		}
 
 		function stripFMV(iso){
