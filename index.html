@@ -369,30 +369,30 @@
 			}
 
 		}
-		
+
 		class GPK{
 			constructor(buffer){
-				
+
 				if(!buffer){
 					this.entries=[];
 					this.entryCount=0;
 					return;
 				}
 				const raw=new DataView(buffer);
-				
+
 				if(raw.getUint32(4, false)!=0x6b5){
 					throw "Incorrect magic number in gpk";
 				}
-				
+
 				this.entryCount=raw.getUint32(0, false);
-				
+
 				this.entries=[];
-				
+
 				var i=0;
 				while(i<this.entryCount){
 					var offset=raw.getUint32(8+i*8, false);
 					var size=raw.getUint32(12+i*8, false);
-					
+
 					if(offset!=0 && size!=0){
 						if(raw.getUint32(offset+4, false)==0xfb90){
 							var sCount=raw.getUint32(offset, false);
@@ -401,7 +401,7 @@
 							while(j<sCount){
 								var sOffset=raw.getUint32(offset+8+j*8, false);
 								var sSize=raw.getUint32(offset+12+j*8, false);
-								
+
 								if(sSize!=0 && sOffset!=0){
 									strings[j]=buffer.slice(offset+sOffset, offset+sOffset+sSize);
 								}
@@ -441,12 +441,12 @@
 				var out=new ArrayBuffer(this.getSize());
 				var d=new DataView(out);
 				var u=new Uint8Array(out);
-				
+
 				d.setUint32(0, this.entryCount, false);
 				d.setUint32(4, 0x6b5, false);
-				
+
 				var curOff=8+this.entryCount*8;
-				
+
 				var i=0;
 				while(i<this.entryCount){
 					var ent=this.entries[i];
@@ -471,7 +471,7 @@
 
 								u.set(new Uint8Array(ent[j]), curOff);
 								curOff+=ent[j].byteLength;
-								
+
 							}else{
 								d.setUint32(tBase+8+j*8, 0, false);
 								d.setUint32(tBase+12+j*8, 0, false);
@@ -481,7 +481,7 @@
 					}else{
 						d.setUint32(8+i*8, curOff, false);
 						d.setUint32(12+i*8, ent.byteLength, false);
-						
+
 						u.set(new Uint8Array(ent), curOff);
 						curOff+=ent.byteLength;
 					}
@@ -489,7 +489,7 @@
 				}
 				return out;
 			}
-			
+
 		}
 
 		class File{
@@ -845,8 +845,9 @@
 						window.setTimeout(function(){
 							prepare(niso);
 							bypassCompression(niso, function(){
-								
+
 								roomTextShuffle(niso);
+								randomiseZombieAlignment(niso);
 								displayMessage("Rebuilding");
 								window.setTimeout(function(){
 									var buf=niso.toBuffer();
@@ -922,6 +923,116 @@
 
 		}
 
+		function collectNpcTypes(iso){
+			var res=[];
+
+			var i=0;
+			while(i<14){
+				if(i==12){
+					i++;
+					continue;
+				}
+				var filename="Npcs"+i+".npc";
+
+				var f=iso.fst.getFile(filename);
+
+				var c=f.read4(4);
+
+				var j=0;
+				while(j<c){
+					var type=f.read4(0x44+j*0x28).toString(16);
+
+					if(!res[type]){
+						res[type]=0;
+					}
+					res[type]++;
+
+					j++;
+				}
+				i++;
+			}
+			return res;
+		}
+
+		function collectNpcTypesLevel(iso, level){
+			var filename="Npcs"+level+".npc";
+			var res=[]
+			var f=iso.fst.getFile(filename);
+
+			var c=f.read4(4);
+
+			var j=0;
+			console.log(c);
+			while(j<c){
+				var type=f.read4(0x44+j*0x28).toString(16);
+
+				if(!res[type]){
+					res[type]=0;
+				}
+				res[type]++;
+
+				j++;
+			}
+			return res;
+		}
+
+		function getNPC(f, type, index){
+
+			const typeSizes=[0x28, 0x68, 0x2c, 0x34, 0x3c];
+
+			var i=0;
+			var offset=0x2c;
+			while(i<type){
+				offset+=f.read4(8+i*8);
+				i++;
+			}
+
+			return f.buffer.slice(offset+index*typeSizes[type], offset+index*typeSizes[type]+typeSizes[type]);
+		}
+
+		function randomiseZombieAlignment(iso){
+
+
+			var pious=iso.fst.getFile("Npcs1.npc");
+			var lindsey=iso.fst.getFile("Npcs6.npc");
+
+			var templates=[
+				new Uint8Array(getNPC(pious, 0, 0).slice(8)),//m zombie
+				new Uint8Array(getNPC(lindsey, 0, 0xe).slice(8)),// x zombie
+				new Uint8Array(getNPC(lindsey, 0, 0x12).slice(8)),// u zombie
+				new Uint8Array(getNPC(lindsey, 0, 9).slice(8)), // c zombie
+			];
+
+			var i=0;
+			while(i<14){
+				if(i==12){
+					i++;
+					continue;
+				}
+				var file=iso.fst.getFile("Npcs"+i+".npc");
+
+				var c=file.read4(4);
+
+				var j=0;
+				while(j<c){
+					var type=file.read2(0x44+j*0x28);
+					if(type==0x8 //m zombie
+					   || type==0x7 //x zombie
+					   || type==0x6 //u zombie
+					   || type==0x1){ //c zombie
+
+							var b=new Uint8Array(file.buffer);
+							b.set(templates[Math.floor(Math.random()*4)], 0x34+j*0x28);
+					 }
+					j++;
+				}
+
+				i++;
+			}
+
+
+		}
+
 		function roomTextShuffle(iso){
 
 			var gpks=[];
@@ -936,12 +1047,12 @@
 
 				var cmp=iso.fst.getFile(filename);
 				cmp.decompressSKASC();
-				
+
 				cmps[i]=cmp;
 
 				gpks[i]=new GPK(cmp.buffer);
 				newGpks[i]=new GPK();
-				
+
 				for(var fi in gpks[i].entries){
 					if(gpks[i].entries[fi]){
 						for(var si in gpks[i].entries[fi]){
@@ -969,31 +1080,31 @@
 			for(var special in pools){
 				var pc=pools[special].slice(0);
 				pc.sort(() => { return Math.random()-0.5;});
-				
+
 				for(var rIndex in pools[special]){
 					var source=pc[rIndex];
 					var dest=pools[special][rIndex];
-					
+
 					var sourceFi=source[0];
 					var sourceSi=source[1];
-					
+
 					var destFi=dest[0];
 					var destSi=dest[1];
-					
+
 					var data=gpks[entries[sourceFi][sourceSi][0]].entries[sourceFi][sourceSi];
-					
+
 					if(!data){
 						console.log(sourceFi, sourceSi, entries[sourceFi][sourceSi][0]);
-						
+
 					}
-					
+
 					for(var de of entries[destFi][destSi]){
 						if(!newGpks[de].entries[destFi]){
 							newGpks[de].entries[destFi]=[];
 						}
 						newGpks[de].entries[destFi][destSi]=data;
 					}
-					
+
 				}
 			}
 			for(var file in cmps){
@@ -1023,7 +1134,7 @@
 			if(file.read4(iOffset)<=i2){
 				throw "Second index out of bounds";
 			}
-			
+
 			var eOffset=file.read4(iOffset+8+i2*8);
 			var size=file.read4(iOffset+12+i2*8);
 			if(eOffset==0 || size==0){
