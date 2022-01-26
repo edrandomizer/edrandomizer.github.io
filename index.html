@@ -847,7 +847,7 @@
 							bypassCompression(niso, function(){
 
 								roomTextShuffle(niso);
-								randomiseZombieAlignment(niso);
+								randomiseZombieAlignment(niso, [null, null, null, [0, 12]]);
 								displayMessage("Rebuilding");
 								window.setTimeout(function(){
 									var buf=niso.toBuffer();
@@ -990,7 +990,7 @@
 			return f.buffer.slice(offset+index*typeSizes[type], offset+index*typeSizes[type]+typeSizes[type]);
 		}
 
-		function randomiseZombieAlignment(iso){
+		function randomiseZombieAlignment(iso, skipList){
 
 
 			var pious=iso.fst.getFile("Npcs1.npc");
@@ -1016,10 +1016,11 @@
 				var j=0;
 				while(j<c){
 					var type=file.read2(0x44+j*0x28);
-					if(type==0x8 //m zombie
-					   || type==0x7 //x zombie
-					   || type==0x6 //u zombie
-					   || type==0x1){ //c zombie
+					if((type==0x8 //m zombie
+					      || type==0x7 //x zombie
+					      || type==0x6 //u zombie
+					      || type==0x1) //c zombie
+					    && (!skipList[i] || skipList[i].indexOf(j)===-1) ){
 
 							var b=new Uint8Array(file.buffer);
 							b.set(templates[Math.floor(Math.random()*4)], 0x34+j*0x28);
