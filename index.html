@@ -20,6 +20,10 @@
 		<input type="file">
     </div>
     <div id="message"></div>
+    <div id="options">
+		<input type="checkbox" id="text_control"  checked="checked" />Randomize text<br />
+		<input type="checkbox" id="zombie_control" checked="checked" />Randomize zombie alignment<br />
+    </div>
 
     <script type="text/javascript">
 		let input = document.querySelector('input');
@@ -845,9 +849,12 @@
 						window.setTimeout(function(){
 							prepare(niso);
 							bypassCompression(niso, function(){
-
-								roomTextShuffle(niso);
-								randomiseZombieAlignment(niso, [null, null, null, [0, 12]]);
+								if(document.getElementById("text_control").checked){
+									roomTextShuffle(niso);
+								}
+								if(document.getElementById("zombie_control").checked){
+									randomiseZombieAlignment(niso, [null, null, null, [0, 12]]);
+								}
 								displayMessage("Rebuilding");
 								window.setTimeout(function(){
 									var buf=niso.toBuffer();
