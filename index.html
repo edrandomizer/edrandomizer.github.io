@@ -22,7 +22,7 @@
     <div id="message"></div>
     <div id="options">
 		<input type="checkbox" id="text_control"  checked="checked" />Randomize text<br />
-		<input type="checkbox" id="zombie_control" checked="checked" />Randomize zombie alignment<br />
+		<input type="checkbox" id="enemy_control" checked="checked" />Randomize enemies<br />
     </div>
 
     <script type="text/javascript">
@@ -374,12 +374,84 @@
 
 		}
 
+		class NPC{
+			constructor(buffer){
+
+				if(!buffer){
+					this.entries=[[],[],[],[],[]];
+					return;
+				}
+				const typeSizes=this.getTypeSizes();
+
+				const raw=new DataView(buffer);
+
+				if(raw.getUint32(0, false)!=0x2c){
+					throw "Incorrect magic number in NPC file";
+				}
+
+				this.entries=[];
+
+				var hOffset=4;
+				var dOffset=0x2c;
+
+				for(var type=0; type<5; type++){
+					var count=raw.getUint32(hOffset, false);
+					hOffset+=8;
+					this.entries[type]=[];
+
+					for(var i=0; i<count; i++){
+						this.entries[type].push(buffer.slice(dOffset, dOffset+typeSizes[type]));
+
+						dOffset+=typeSizes[type];
+					}
+
+				}
+			}
+
+			getTypeSizes(){
+				return [0x28, 0x68, 0x2c, 0x34, 0x3c];
+			}
+
+			getSize(){
+				var size=0x2c;
+				const typeSizes=this.getTypeSizes();
+				for(var i in this.entries){
+					size+=typeSizes[i]*this.entries[i].length;
+				}
+				return size;
+			}
+
+			toBuffer(){
+				const buf=new ArrayBuffer(this.getSize());
+
+				const data=new DataView(buf);
+				const arr=new Uint8Array(buf);
+
+				const typeSizes=this.getTypeSizes();
+
+				data.setUint32(0, 0x2c);
+
+				var dOffset=0x2c;
+
+				for(var i in this.entries){
+					data.setUint32(4+i*8, this.entries[i].length, false);
+					data.setUint32(8+i*8, this.entries[i].length*typeSizes[i], false);
+
+					for(var ent of this.entries[i]){
+						arr.set(new Uint8Array(ent), dOffset);
+						dOffset+=typeSizes[i];
+					}
+				}
+
+				return buf;
+			}
+		}
+
 		class GPK{
 			constructor(buffer){
 
 				if(!buffer){
 					this.entries=[];
-					this.entryCount=0;
 					return;
 				}
 				const raw=new DataView(buffer);
@@ -388,12 +460,12 @@
 					throw "Incorrect magic number in gpk";
 				}
 
-				this.entryCount=raw.getUint32(0, false);
+				var entryCount=raw.getUint32(0, false);
 
 				this.entries=[];
 
 				var i=0;
-				while(i<this.entryCount){
+				while(i<entryCount){
 					var offset=raw.getUint32(8+i*8, false);
 					var size=raw.getUint32(12+i*8, false);
 
@@ -422,7 +494,7 @@
 			}
 
 			getSize(){
-				var size=8+8*this.entryCount;
+				var size=8+8*this.entries.length;
 				for(var ent of this.entries){
 					if(Array.isArray(ent)){
 						size+=8+ent.length*8;
@@ -440,19 +512,19 @@
 
 			toBuffer(){
 
-				this.entryCount=this.entries.length;
+				var entryCount=this.entries.length;
 
 				var out=new ArrayBuffer(this.getSize());
 				var d=new DataView(out);
 				var u=new Uint8Array(out);
 
-				d.setUint32(0, this.entryCount, false);
+				d.setUint32(0, entryCount, false);
 				d.setUint32(4, 0x6b5, false);
 
-				var curOff=8+this.entryCount*8;
+				var curOff=8+entryCount*8;
 
 				var i=0;
-				while(i<this.entryCount){
+				while(i<entryCount){
 					var ent=this.entries[i];
 					if(!ent){
 						d.setUint32(8+i*8, 0, false);
@@ -546,7 +618,17 @@
 			decompressSKASC(){
 				if(this.read4(0)==0x2a534b5f && this.read4(4)==0x4153432a){//*SK_ASC*
 					this.replace(decompress(new Uint8Array(this.buffer)));
+				}else{
+					throw "Incorrect header in SK_ASC";
 				}
+			}
+
+			asGPK(){
+				return new GPK(this.buffer);
+			}
+
+			asNPC(){
+				return new NPC(this.buffer);
 			}
 
 		}
@@ -852,8 +934,8 @@
 								if(document.getElementById("text_control").checked){
 									roomTextShuffle(niso);
 								}
-								if(document.getElementById("zombie_control").checked){
-									randomiseZombieAlignment(niso, [null, null, null, [0, 12]]);
+								if(document.getElementById("enemy_control").checked){
+									randomiseEnemyAlignment(niso, [null, null, null]);// [0, 12]]);
 								}
 								displayMessage("Rebuilding");
 								window.setTimeout(function(){
@@ -983,32 +1065,39 @@
 			return res;
 		}
 
-		function getNPC(f, type, index){
+		function randomiseEnemyAlignment(iso, skipList){
 
-			const typeSizes=[0x28, 0x68, 0x2c, 0x34, 0x3c];
+			var pious=iso.fst.getFile("Npcs1.npc").asNPC();
+			var lindsey=iso.fst.getFile("Npcs6.npc").asNPC();
+			var karim=iso.fst.getFile("Npcs4.npc").asNPC();
 
-			var i=0;
-			var offset=0x2c;
-			while(i<type){
-				offset+=f.read4(8+i*8);
-				i++;
-			}
+			const buildTemplateFromStatic = (e)=> {
+				return [new Uint8Array(e.slice(0x18, 0x18+0x4)), new Uint8Array(e.slice(0x20, 0x20+0x2))];
+			};
 
-			return f.buffer.slice(offset+index*typeSizes[type], offset+index*typeSizes[type]+typeSizes[type]);
-		}
-
-		function randomiseZombieAlignment(iso, skipList){
+			const buildTemplateFromDynamic = (e, i)=> {
+				return [new Uint8Array(e.slice(0x18+i*6, 0x18+i*6+4)), new Uint8Array(e.slice(0x1c+i*6, 0x1c+i*6+2))];
+			};
 
 
-			var pious=iso.fst.getFile("Npcs1.npc");
-			var lindsey=iso.fst.getFile("Npcs6.npc");
 
 			var templates=[
-				new Uint8Array(getNPC(pious, 0, 0).slice(8)),//m zombie
-				new Uint8Array(getNPC(lindsey, 0, 0xe).slice(8)),// x zombie
-				new Uint8Array(getNPC(lindsey, 0, 0x12).slice(8)),// u zombie
-				new Uint8Array(getNPC(lindsey, 0, 9).slice(8)), // c zombie
+				buildTemplateFromStatic(pious.entries[0][0]),//m zombie,
+				buildTemplateFromStatic(lindsey.entries[0][0xe]), //x zombie
+				buildTemplateFromStatic(lindsey.entries[0][0x13]),//u zombie
+				buildTemplateFromStatic(lindsey.entries[0][9]),//c zombie
+				buildTemplateFromDynamic(karim.entries[3][0], 0),//x horror
+				buildTemplateFromDynamic(karim.entries[3][0], 2),//u horror
+				buildTemplateFromDynamic(karim.entries[3][0], 1),//c horror
+				buildTemplateFromDynamic(lindsey.entries[3][15], 2),//x trapper
+				buildTemplateFromDynamic(lindsey.entries[3][15], 1),//u trapper
+				buildTemplateFromDynamic(lindsey.entries[3][15], 0),//c trapper
 			];
+
+			var candidates=[];
+			for(var temp of templates){
+				candidates.push(new DataView(temp[0].buffer).getUint16(0, false));
+			}
 
 			var i=0;
 			while(i<14){
@@ -1018,27 +1107,50 @@
 				}
 				var file=iso.fst.getFile("Npcs"+i+".npc");
 
-				var c=file.read4(4);
+				var npcs=file.asNPC();
+
+				var c=npcs.entries[0].length;
 
 				var j=0;
 				while(j<c){
-					var type=file.read2(0x44+j*0x28);
-					if((type==0x8 //m zombie
-					      || type==0x7 //x zombie
-					      || type==0x6 //u zombie
-					      || type==0x1) //c zombie
-					    && (!skipList[i] || skipList[i].indexOf(j)===-1) ){
+					var type=new DataView(npcs.entries[0][j]).getUint16(0x18, false);
 
-							var b=new Uint8Array(file.buffer);
-							b.set(templates[Math.floor(Math.random()*4)], 0x34+j*0x28);
-					 }
+					if(candidates.indexOf(type)!==-1 && (!skipList[i] || !skipList[i][0] || skipList[i].indexOf(j)===-1) ){
+						var b=new Uint8Array(npcs.entries[0][j]);
+						var rand=Math.floor(Math.random()*templates.length);
+						b.set(templates[rand][0], 0x18);
+						b.set(templates[rand][1], 0x20);
+					}
 					j++;
 				}
 
+				c=npcs.entries[3].length;
+
+				j=0;
+				while(j<c){
+
+					var type=new DataView(npcs.entries[3][j]).getUint16(0x18, false);
+
+					if(candidates.indexOf(type)!==-1 && (!skipList[i] || !skipList[i][3] || skipList[i][3].indexOf(j)===-1) ){
+						var b=new Uint8Array(npcs.entries[3][j]);
+						var rand=Math.floor(Math.random()*templates.length);
+						b.set(templates[rand][0], 0x18);
+						b.set(templates[rand][1], 0x1c);
+						rand=Math.floor(Math.random()*templates.length);
+						b.set(templates[rand][0], 0x1e);
+						b.set(templates[rand][1], 0x22);
+						rand=Math.floor(Math.random()*templates.length);
+						b.set(templates[rand][0], 0x24);
+						b.set(templates[rand][1], 0x28);
+					}
+
+					j++;
+				}
+
+				file.replace(npcs.toBuffer());
+
 				i++;
 			}
-
-
 		}
 
 		function roomTextShuffle(iso){
