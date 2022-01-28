@@ -23,6 +23,7 @@
     <div id="options">
 		<input type="checkbox" id="text_control"  checked="checked" />Randomize text<br />
 		<input type="checkbox" id="enemy_control" checked="checked" />Randomize enemies<br />
+		<input type="checkbox" id="rune_control" />Randomize rune locations<br />
 		<input type="input" id="seed" placeholder="Seed (leave blank for random)"></br>
     </div>
 
@@ -80,7 +81,10 @@
 			return view.buffer;
 		}
 
-		function decompressText(compressed, decompressedLength){
+		function decompressText(compressed, decompressedLength=0){
+			if(decompressedLength==0){
+				decompressedLength=compressed.length*compressed.BYTES_PER_ELEMENT;
+			}
 			var buf = Module._malloc(compressed.length*compressed.BYTES_PER_ELEMENT);
 			Module.HEAPU8.set(compressed, buf);
 			var out = Module._malloc(decompressedLength*2);
@@ -568,6 +572,280 @@
 			}
 
 		}
+		
+		class LUA{
+			constructor(buffer){
+				if(!buffer){
+					this.instructions=[];
+					this.strings=[];
+					this.numbers=[];
+					this.maxStack=32;
+					return;
+				}
+				
+				const data=new DataView(buffer);
+
+				if(data.getUint32(0, true)!=0x61754c1b){
+					throw "Not a lua file";
+				}
+				
+				if(data.getUint8(4, true)!=0x40){
+					throw "Must be lua version 4";
+				}
+
+				if(data.getUint8(5, true)!=1 || data.getUint8(6, true)!=4 || data.getUint8(7, true)!=4
+				   || data.getUint8(8, true)!=4 || data.getUint8(9, true)!=32 || data.getUint8(10, true)!=6
+				   || data.getUint8(11, true)!=9 || data.getUint8(12, true)!=8){
+
+					throw "Bad lua type";
+				}
+				
+				if(data.getFloat64(13, true)!=3.14159265358979323846E8){
+					throw "Mismatched floats";
+				}
+				
+				this.maxStack=data.getUint32(35, true);
+				
+				const sCount=data.getUint32(47, true);
+				
+				var offset=51;
+				this.strings=[];
+				for(var i=0; i<sCount; i++){
+					var size=data.getUint32(offset, true);
+					offset+=4;
+					var s=new Uint8Array(buffer.slice(offset, offset+size-1));
+					s=String.fromCharCode.apply(String, s);
+					this.strings.push(s);
+					offset+=size;
+				}
+				
+				
+				const nCount=data.getUint32(offset, true);
+				offset+=4;
+				this.numbers=[];
+				for(var i=0; i<nCount; i++){
+					this.numbers.push(data.getFloat64(offset, true));
+					offset+=8;
+				}
+				
+				offset+=4;
+				
+				const iCount=data.getUint32(offset, true);
+
+				offset+=4;
+				this.instructions=[];
+				for(var i=0; i<iCount; i++){
+					this.instructions.push(data.getUint32(offset, true));
+					offset+=4;
+				}
+			}
+			
+			buildInstruction(op, a, b){
+				const opcodes=this.getOpcodes();
+				
+				var menemonics=opcodes.map((e)=>{return e[0]});
+				
+				var code=menemonics.indexOf(op.toUpperCase());
+
+				if(code===-1){
+					throw "Menemonic not recognised";
+				}
+
+				if(opcodes[code][1]=="NONE"){
+					return code;
+				}
+				if(opcodes[code][1]=="U" || opcodes[1]=="L"){
+					return code | (a<<6);
+				}
+				if(opcodes[code][1]=="S" || opcodes[1]=="J"){
+					return code | ((a+0x01FFFFFF)<<6);
+				}
+				if(opcodes[code][1]=="AB"){
+					return code | (a<<15) | (( b &0x1FF) << 6);
+				}
+				if(opcodes[code][1]=="K"){
+					var s=this.strings.indexOf(a);
+					if(s===-1){
+						s=this.strings.length;
+						this.strings.push(a);
+					}
+					return code | (s<<6);
+				}
+				if(opcodes[code][1]=="N"){
+					var n=this.numbers.indexOf(a);
+					if(n===-1){
+						s=this.numbers.length;
+						this.numbers.push(a);
+					}
+					return code | (n<<6);
+				}
+			}
+			
+			parseInstruction(op){
+
+				const opcode=this.getOpcodes()[op&0x3f];
+				
+				if(opcode[1]=="NONE"){
+					return opcode[0];
+				}
+				if(opcode[1]=="U" || opcode[1]=="L"){
+					var u=op>>>6;
+					return opcode[0]+" "+u;
+				}
+				if(opcode[1]=="S" || opcode[1]=="J"){
+					var s=(op>>>6)-0x01FFFFFF;
+					return opcode[0]+" "+s;
+				}
+				if(opcode[1]=="AB"){
+					var a=op>>>15;
+					var b=(op>>>6)&&0x1FF;
+					return opcode[0]+" "+a+" "+b;
+				}
+				if(opcode[1]=="K"){
+					var k=this.strings[op>>>6];
+					return opcode[0]+" "+k;
+				}
+				if(opcode[1]=="N"){
+					var n=this.numbers[op>>>6];
+					return opcode[0]+" "+n;
+				}
+				return opcode[0];
+			}
+			
+			getOpcodes(){
+				return [
+					["END", "NONE"],
+					["RETURN", "U"],
+					["CALL", "AB"],
+					["TAILCALL", "AB"],
+					["PUSHNIL", "U"],
+					["POP", "U"],
+					["PUSHINT", "S"],
+					["PUSHSTRING", "K"],
+					["PUSHNUM", "N"],
+					["PUSHNEGNUM", "N"],
+					["PUSHUPVALUE", "U"],
+					["GETLOCAL", "L"],
+					["GETGLOBAL", "K"],
+					["GETTABLE", "NONE"],
+					["GETDOTTED", "K"],
+					["GETINDEXED", "L"],
+					["PUSHSELF", "K"],
+					["CREATETABLE", "U"],
+					["SETLOCAL", "L"],
+					["SETGLOBAL", "K"],
+					["SETTABLE", "AB"],
+					["SETLIST", "AB"],
+					["SETMAP", "U"],
+					["ADD", "NONE"],
+					["ADDI", "S"],
+					["SUB", "NONE"],
+					["MULT", "NONE"],
+					["DIV", "NONE"],
+					["POW", "NONE"],
+					["CONCAT", "U"],
+					["MINUS", "NONE"],
+					["NOT", "NONE"],
+					["JMPNE", "J"],
+					["JMPEQ", "J"],
+					["JMPLT", "J"],
+					["JMPLE", "J"],
+					["JMPGT", "J"],
+					["JMPGE", "J"],
+					["JMPT", "J"],
+					["JMPF", "J"],
+					["JMPONT", "J"],
+					["JMPONF", "J"],
+					["JMP", "J"],
+					["PUSHNILJMP", "NONE"],
+					["FORPREP", "J"],
+					["FORLOOP", "J"],
+					["LFORPREP", "J"],
+					["LFORLOOP", "J"],
+					["CLOSURE", "AB"],
+				];
+			}
+			
+			getSize(){
+				var size=63;
+
+				size+=this.instructions.length*4;
+				size+=this.numbers.length*8;
+				size+=this.strings.length*4;
+
+				for(var s of this.strings){
+					size+=s.length+1;
+				}
+
+				return size;
+			}
+			
+			toBuffer(){
+				const b=new ArrayBuffer(this.getSize());
+				const data=new DataView(b);
+				
+				data.setUint32(0, 0x61754c1b, true);
+				
+				data.setUint8(4, 0x40, true);
+				data.setUint8(5, 1, true);
+				data.setUint8(6, 4, true);
+				data.setUint8(7, 4, true);
+				data.setUint8(8, 4, true);
+				data.setUint8(9, 32, true);
+				data.setUint8(10, 6, true);
+				data.setUint8(11, 9, true);
+				data.setUint8(12, 8, true);
+				
+				data.setFloat64(13, 3.14159265358979323846E8, true);
+
+
+				data.setUint32(21, 1, true);
+				data.setUint8(25, 0, true);
+
+				data.setUint32(26, 0, true);
+				data.setUint32(30, 0, true);
+				data.setUint8(34, 0, true);
+				data.setUint32(35, this.maxStack, true);
+				
+				data.setUint32(39, 0, true);
+				
+				data.setUint32(43, 0, true);
+				
+				data.setUint32(47, this.strings.length, true);
+				
+				var offset=51;
+				
+				for(var s of this.strings){
+					data.setUint32(offset, s.length+1, true);
+					offset+=4;
+					for(var i=0; i<s.length; i++){
+						data.setUint8(offset++, s.charCodeAt(i), true);
+					}
+					data.setUint8(offset++, 0, true);
+				}
+
+				data.setUint32(offset, this.numbers.length, true);
+				offset+=4;
+				
+				for(var n of this.numbers){
+					data.setFloat64(offset, n, true);
+					offset+=8;
+				}
+				
+				data.setUint32(offset, 0, true);
+				offset+=4;
+				
+				data.setUint32(offset, this.instructions.length, true);
+				offset+=4;
+				
+				for(var ins of this.instructions){
+					data.setUint32(offset, ins, true);
+					offset+=4;
+				}
+				return b;
+			}
+			
+		}
 
 		class File{
 			constructor(buffer){
@@ -618,7 +896,7 @@
 
 			decompressSKASC(){
 				if(this.read4(0)==0x2a534b5f && this.read4(4)==0x4153432a){//*SK_ASC*
-					this.replace(decompress(new Uint8Array(this.buffer)));
+					return decompress(new Uint8Array(this.buffer));
 				}else{
 					throw "Incorrect header in SK_ASC";
 				}
@@ -946,10 +1224,13 @@
 									roomTextShuffle(niso);
 								}
 								if(document.getElementById("enemy_control").checked){
-									randomizeEnemyAlignment(niso, []);//[null, null, null, [[0, 12]]],//anthony
+									randomizeEnemies(niso, []);//[null, null, null, [[0, 12]]],//anthony
 									// [null, null, null, [18, 12]],//karim
 									// null,[],//lindsey
 									//  );
+								}
+								if(document.getElementById("rune_control").checked){
+									randomizeRunes(niso);
 								}
 								displayMessage("Rebuilding");
 								window.setTimeout(function(){
@@ -976,7 +1257,7 @@
 					var file=entry.file;
 					if(file.read4(0)==0x2a534b5f && file.read4(4)==0x4153432a){//*SK_ASC*
 						console.log("Decompressing "+entry.name);
-						file.decompressSKASC();
+						file.replace(file.decompressSKASC());
 					}
 				}
 			}
@@ -1088,7 +1369,7 @@
 			return res;
 		}
 
-		function randomizeEnemyAlignment(iso, skipList){
+		function randomizeEnemies(iso, skipList){
 
 			var pious=iso.fst.getFile("Npcs1.npc").asNPC();
 			var lindsey=iso.fst.getFile("Npcs6.npc").asNPC();
@@ -1205,7 +1486,7 @@
 				var filename="RmTxt"+("00"+i).slice(-2)+".cmp";
 
 				var cmp=iso.fst.getFile(filename);
-				cmp.decompressSKASC();
+				cmp.replace(cmp.decompressSKASC());
 
 				cmps[i]=cmp;
 
@@ -1252,11 +1533,6 @@
 
 					var data=gpks[entries[sourceFi][sourceSi][0]].entries[sourceFi][sourceSi];
 
-					if(!data){
-						console.log(sourceFi, sourceSi, entries[sourceFi][sourceSi][0]);
-
-					}
-
 					for(var de of entries[destFi][destSi]){
 						if(!newGpks[de].entries[destFi]){
 							newGpks[de].entries[destFi]=[];
@@ -1270,6 +1546,61 @@
 				cmps[file].replace(newGpks[file].toBuffer());
 			}
 
+		}
+		
+		function replaceScript(iso, script, lua){
+			var i=0;
+			while(i<14){
+				if(i==12){
+					i++;
+					continue;
+				}
+
+				var f=iso.fst.getFile("ScrLvl"+("00"+i).slice(-2)+".gpk");
+				var g=f.asGPK();
+
+				if(g.entries[script]){
+					g.entries[script]=lua;
+				}
+
+				f.replace(g.toBuffer());
+				i++;
+			}
+		}
+		
+		function randomizeRunes(iso){
+			var runeScripts=[[1367, 1], //128
+							 [1363, 25], //8
+							 [1360, 5], //1
+							 [1361, 5], //2
+							 [1362, 5], //4
+							 [1366, 1], //64
+							 [1372, 1], //4096
+							 [1371, 1], //2048
+							 [1364, 1], //16
+							 [1369, 1], //512
+							 [1373, 1], //8192
+							 [1365, 1], //32
+							 [1370, 1], //1024
+							 [1368, 1]]; //256
+							 
+			var rand=[];
+			
+			for(var i=0; i<14; i++){
+				rand.push(1<<i);
+			}
+			
+			rand.sort((e)=>{return Math.random()-0.5;});
+			
+			const source=iso.fst.getFile("ScrLvl03.gpk").asGPK();
+			
+			var i=0;
+			for(var script of runeScripts){
+				const lua=new LUA(source.entries[script[0]]);
+				lua.instructions[script[1]]=lua.buildInstruction("PUSHINT", rand[i++]);
+				replaceScript(iso, script[0], lua.toBuffer());
+			}
+			
 		}
 
 		function textLookup(file, i1, i2){
