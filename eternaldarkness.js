@@ -646,6 +646,7 @@ function findScript(iso, script){
 
 
 function replaceScript(iso, script, lua){
+	lua=toBuf(lua);
 	var i=0;
 	while(i<14){
 		if(i==12){

@@ -1,4 +1,4 @@
-#Scripts
+# Scripts
 
 Scripts are stored as single layer [GPK files](gpk.md) so you may wish to read that first. Each level has it's own script archive and often the same script will appear in multiple levels. To save the trouble of having to find the right level and replace it in every archive it appears in, the findScript and replaceScript functions are provided.
 

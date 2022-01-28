@@ -1,4 +1,4 @@
-#GPK files
+# GPK files
 
 GPK files are an archive format using integer keys. They come in two types, single and double layer, with 1 and 2 keys respectively. Scripts are stored as single layer, text as double layer.
 

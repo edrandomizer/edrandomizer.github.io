@@ -12,12 +12,12 @@ The download function allows you to export things to your hard drive. When you'r
 Files can be accessed via `iso.getFile('ai/ed_chars.dat')`. They support read/2/4 and write/2/4 methods for manual editing but usually you'll want to use one of the provided file formats. 
 If you use one of the file formats and make changes to it you must use the replace method on the file for your changes to take effect.
 
-For instance to open pious's npcs and overwrite the first 4 bytes with F's:
+For instance to open Pious's npcs and overwrite the first 4 bytes with F's:
 ```javascript
 piousNPC=iso.getFile("Npcs1.npc");
 piousNPC.write4(0, 0xFFFFFFFF);
 ```
-Opening pious's scripts as a GPK file, deleting script 1234 and saving the changes:
+Opening Pious's scripts as a GPK file, deleting script 1234 and saving the changes:
 ```javascript
 piousScripts=new GPK(iso.getFile("ScrLvl01.gpk"));
 piousScripts.entries[1234]=null;
