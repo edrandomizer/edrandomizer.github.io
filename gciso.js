@@ -18,6 +18,9 @@ function writeBuffer(src, dest, offset){
 }
 
 function asBuf(buf){
+	if(!buf){
+		return null;
+	}
 	if(buf.toBuffer){
 		return buf.toBuffer();
 	}

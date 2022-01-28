@@ -65,7 +65,7 @@ class NPC{
 			data.setUint32(8+i*8, this.entries[i].length*typeSizes[i], false);
 
 			for(var ent of this.entries[i]){
-				arr.set(new Uint8Array(ent), dOffset);
+				arr.set(new Uint8Array(asBuf(ent)), dOffset);
 				dOffset+=typeSizes[i];
 			}
 		}
@@ -171,11 +171,12 @@ class GPK{
 				var j=0;
 				while(j<ent.length){
 					if(ent[j]){
+						var el=asBuf(ent[j]);
 						d.setUint32(tBase+8+j*8, curOff-tBase, false);
-						d.setUint32(tBase+12+j*8, ent[j].byteLength, false);
+						d.setUint32(tBase+12+j*8, el.byteLength, false);
 
-						u.set(new Uint8Array(ent[j]), curOff);
-						curOff+=ent[j].byteLength;
+						u.set(new Uint8Array(el), curOff);
+						curOff+=el.byteLength;
 
 					}else{
 						d.setUint32(tBase+8+j*8, 0, false);
@@ -184,6 +185,7 @@ class GPK{
 					j++;
 				}
 			}else{
+				ent=asBuf(ent);
 				d.setUint32(8+i*8, curOff, false);
 				d.setUint32(12+i*8, ent.byteLength, false);
 
@@ -646,7 +648,7 @@ function findScript(iso, script){
 
 
 function replaceScript(iso, script, lua){
-	lua=toBuf(lua);
+	lua=asBuf(lua);
 	var i=0;
 	while(i<14){
 		if(i==12){

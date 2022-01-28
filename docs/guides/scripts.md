@@ -16,8 +16,8 @@ findScript returns a LUA object. LUA objects contain a list of instructions, whi
 ```javascript
 credits=findScript(iso, 2527);
 
-credits.parseInstruction(credits.instruction[0]); //output the first instruction in the credits script
-credits.instruction[0]=credits.buildInstruction("PUSHINT", 16); //Replace the first instruction with PUSHINT 16
+credits.parseInstruction(credits.instructions[0]); //output the first instruction in the credits script
+credits.instructions[0]=credits.buildInstruction("PUSHINT", 16); //Replace the first instruction with PUSHINT 16
 ```
 
 ## Flags
