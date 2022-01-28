@@ -23,7 +23,8 @@
     <div id="options">
 		<input type="checkbox" id="text_control"  checked="checked" />Randomize text<br />
 		<input type="checkbox" id="enemy_control" checked="checked" />Randomize enemies<br />
-		<input type="checkbox" id="rune_control" />Randomize rune locations<br />
+		<input type="checkbox" id="rune_control" checked="checked" />Randomize rune locations<br />
+		<input type="checkbox" id="gate_control" checked="checked" />Remove spell gates<br />
 		<input type="input" id="seed" placeholder="Seed (leave blank for random)"></br>
     </div>
 
@@ -572,7 +573,7 @@
 			}
 
 		}
-		
+
 		class LUA{
 			constructor(buffer){
 				if(!buffer){
@@ -582,13 +583,13 @@
 					this.maxStack=32;
 					return;
 				}
-				
+
 				const data=new DataView(buffer);
 
 				if(data.getUint32(0, true)!=0x61754c1b){
 					throw "Not a lua file";
 				}
-				
+
 				if(data.getUint8(4, true)!=0x40){
 					throw "Must be lua version 4";
 				}
@@ -599,15 +600,15 @@
 
 					throw "Bad lua type";
 				}
-				
+
 				if(data.getFloat64(13, true)!=3.14159265358979323846E8){
 					throw "Mismatched floats";
 				}
-				
+
 				this.maxStack=data.getUint32(35, true);
-				
+
 				const sCount=data.getUint32(47, true);
-				
+
 				var offset=51;
 				this.strings=[];
 				for(var i=0; i<sCount; i++){
@@ -618,8 +619,8 @@
 					this.strings.push(s);
 					offset+=size;
 				}
-				
-				
+
+
 				const nCount=data.getUint32(offset, true);
 				offset+=4;
 				this.numbers=[];
@@ -627,9 +628,9 @@
 					this.numbers.push(data.getFloat64(offset, true));
 					offset+=8;
 				}
-				
+
 				offset+=4;
-				
+
 				const iCount=data.getUint32(offset, true);
 
 				offset+=4;
@@ -639,12 +640,12 @@
 					offset+=4;
 				}
 			}
-			
+
 			buildInstruction(op, a, b){
 				const opcodes=this.getOpcodes();
-				
+
 				var menemonics=opcodes.map((e)=>{return e[0]});
-				
+
 				var code=menemonics.indexOf(op.toUpperCase());
 
 				if(code===-1){
@@ -680,11 +681,11 @@
 					return code | (n<<6);
 				}
 			}
-			
+
 			parseInstruction(op){
 
 				const opcode=this.getOpcodes()[op&0x3f];
-				
+
 				if(opcode[1]=="NONE"){
 					return opcode[0];
 				}
@@ -711,7 +712,7 @@
 				}
 				return opcode[0];
 			}
-			
+
 			getOpcodes(){
 				return [
 					["END", "NONE"],
@@ -765,7 +766,7 @@
 					["CLOSURE", "AB"],
 				];
 			}
-			
+
 			getSize(){
 				var size=63;
 
@@ -779,13 +780,13 @@
 
 				return size;
 			}
-			
+
 			toBuffer(){
 				const b=new ArrayBuffer(this.getSize());
 				const data=new DataView(b);
-				
+
 				data.setUint32(0, 0x61754c1b, true);
-				
+
 				data.setUint8(4, 0x40, true);
 				data.setUint8(5, 1, true);
 				data.setUint8(6, 4, true);
@@ -795,7 +796,7 @@
 				data.setUint8(10, 6, true);
 				data.setUint8(11, 9, true);
 				data.setUint8(12, 8, true);
-				
+
 				data.setFloat64(13, 3.14159265358979323846E8, true);
 
 
@@ -806,15 +807,15 @@
 				data.setUint32(30, 0, true);
 				data.setUint8(34, 0, true);
 				data.setUint32(35, this.maxStack, true);
-				
+
 				data.setUint32(39, 0, true);
-				
+
 				data.setUint32(43, 0, true);
-				
+
 				data.setUint32(47, this.strings.length, true);
-				
+
 				var offset=51;
-				
+
 				for(var s of this.strings){
 					data.setUint32(offset, s.length+1, true);
 					offset+=4;
@@ -826,25 +827,25 @@
 
 				data.setUint32(offset, this.numbers.length, true);
 				offset+=4;
-				
+
 				for(var n of this.numbers){
 					data.setFloat64(offset, n, true);
 					offset+=8;
 				}
-				
+
 				data.setUint32(offset, 0, true);
 				offset+=4;
-				
+
 				data.setUint32(offset, this.instructions.length, true);
 				offset+=4;
-				
+
 				for(var ins of this.instructions){
 					data.setUint32(offset, ins, true);
 					offset+=4;
 				}
 				return b;
 			}
-			
+
 		}
 
 		class File{
@@ -1232,6 +1233,69 @@
 								if(document.getElementById("rune_control").checked){
 									randomizeRunes(niso);
 								}
+								if(document.getElementById("gate_control").checked){
+									setStartingFlags(niso, [[0x80725E46, 0], [0x80725E47, 7], //Anthony urns
+
+															//Karim:
+															//[0x80725E31, 0], //Unlocks Santak barrier
+															//[0x80725E33, 0], //Activates ladder b-promt of the santak barrier
+															//[0x80725E47, 4], //Unlocks Narokath barrier and gives ladder b-prompt
+															[0x80725E4C, 3], //Enchanted Ram Dao door examine
+															//Max:
+															[0x80725E6F, 3], //Basement door revealed
+															//[0x80725E9B, 3], //Unlock Bankorok barrier
+
+															//Lindsey:
+														//	[0x80725E52, 7], //Unlocks Aretak barrier (bit [7] might be important too)
+														//	[0x80725E51, 0], //Unlocks Tier barrier (bit [4] might be important too)
+															[0x80725E45, 0], //
+															[0x80725E46, 7], //these control the silver statue examine, I assume if you activate the necklace one then you'll only need the silver bracelet to open the gate. This might be important because idk if there is a flag for the necklace damage field
+															[0x80725E53, 7], //Mantorok Rune examine (might work even with the wall collision)
+															[0x80725E2A, 1], //
+															[0x80725E2A, 2], //
+															[0x80725E28, 6], //I think these control the 3 mantorok barriers, no idea if there's a collision flag for the Trapper wall tho
+
+															//Paul:
+
+															[0x80725E41, 2], //"Heresy Revealed" seen, it activates agustine opening the door cutscene
+															//[0x80725E46 , 5], //Unlocks binding hall door
+
+															//Roberto:
+															[0x80725E2C, 6], //smasher ladder b-prompt (to avoid summon zombie)
+															[0x80725E8E, 2], //removes invisible wall in order to get the key
+
+															//Peter
+															[0x80725E50, 1], //Unlocks Coal room, despite the dead body still being there (to avoid Summon trapper)
+															[0x80725E6F, 4], //Secret door revealed
+															[0x80725E2C, 7], //is related to defeating Black Guardian. No idea what to do about BG, I don't think there's a flag for the stained glass collision, and that would still softlock in chattur'gha because of the stronger force field
+															//We could either restrict Peter with logic to always be after having magick attack, or just set the BG to be dead since the start of the chapter (I think it's ID is 145 at the start)
+															//Edward:
+															[0x80725E6C, 1], //Activates Mix on the inventory, necessary for the basement key if Anthony hasn't happened yet
+															[0x80725E4C, 4], //Unlocks basement door. I think this doesn't break anything, you still need to defeat all Vampire phases in order to enter Ehn'gha
+
+															//Michael:
+															[0x80725E6C, 1], //Activates Mix on the inventory, necessary for the bomb if Anthony hasn't happened yet
+															[0x80725E51, 1], //Reveals Forgotten Corridor Door
+															[0x80725E50, 2], //Activates the b-prompt of the ladder behind the obelisk, but the collision is still there so is inaccessible anyways.
+															[0x80725E71, 7], //Deactivates Bind barrier
+															[0x80725E61, 7], //Activates escape sequence. This could be set to avoid logic for Summon Trapper (obelisk collision), with this flag set you'll enter the escape sequence when coming back from the worm bridge room
+
+															//Alex:
+															[0x80725E49, 3], //"beating Anthony", it unlocks the spell page for Alex
+															[0x80725E60, 6], //Unlocks 2nd floor room, avoids enchant
+															[0x80725E51, 2], //Unlocks the kitchen gladius lock, avoids enchant
+															[0x80725E68, 7], //Reveals the dresser
+															[0x80725E7B, 3], //Changes the stained glass examine, but I think Paul page examine is still somehow tied to the dispel cutscene because the b-prompt is still not there and this is the only flag that changes during this
+															[0x80725E49, 7], //"beating Paul", allows to play the piano
+															[0x80725E48, 0], //"beating Roberto", allows to survey the picture on the tome room
+															[0x80725E4E, 7], //Unlocks basement door
+															[0x80725E68, 3], //Bathroom lights on
+															[0x80725E48, 1], //"beating Edward", allows grabbing the pickaxe
+															[0x80725EA1, 1], //Allows grabbing the stethoscope even with an active damage field
+															[0x80725E8E, 6], //Gives Enchanted Gladius on the Parcel
+
+														   ]);
+								}
 								displayMessage("Rebuilding");
 								window.setTimeout(function(){
 									var buf=niso.toBuffer();
@@ -1547,7 +1611,7 @@
 			}
 
 		}
-		
+
 		function replaceScript(iso, script, lua){
 			var i=0;
 			while(i<14){
@@ -1567,7 +1631,7 @@
 				i++;
 			}
 		}
-		
+
 		function randomizeRunes(iso){
 			var runeScripts=[[1367, 1], //128
 							 [1363, 25], //8
@@ -1583,24 +1647,54 @@
 							 [1365, 1], //32
 							 [1370, 1], //1024
 							 [1368, 1]]; //256
-							 
+
 			var rand=[];
-			
+
 			for(var i=0; i<14; i++){
 				rand.push(1<<i);
 			}
-			
+
 			rand.sort((e)=>{return Math.random()-0.5;});
-			
+
 			const source=iso.fst.getFile("ScrLvl03.gpk").asGPK();
-			
+
 			var i=0;
 			for(var script of runeScripts){
 				const lua=new LUA(source.entries[script[0]]);
 				lua.instructions[script[1]]=lua.buildInstruction("PUSHINT", rand[i++]);
 				replaceScript(iso, script[0], lua.toBuffer());
 			}
-			
+
+		}
+
+		function bitAddressToFlag(address, bit){
+			const base=0x80725E24;
+
+			const diff=address-base;
+
+			const block=Math.floor(diff/4)*32;
+
+			const single=(3-(diff%4))*8;
+
+			return block+single+bit;
+		}
+
+		function setStartingFlags(iso, flags){
+
+			const g=iso.fst.getFile("ScrLvl00.gpk").asGPK();
+
+			const start=new LUA(g.entries[1920]);
+
+			for(var flag of flags){
+				var edFlag=bitAddressToFlag(flag[0], flag[1]);
+				start.instructions.unshift(start.buildInstruction("CALL", 0, 0));
+				start.instructions.unshift(start.buildInstruction("PUSHINT", 1));
+				start.instructions.unshift(start.buildInstruction("PUSHINT", edFlag));
+				start.instructions.unshift(start.buildInstruction("GETGLOBAL", "fn29"));
+			}
+			g.entries[1920]=start.toBuffer();
+
+			iso.fst.getFile("ScrLvl00.gpk").replace(g.toBuffer());
 		}
 
 		function textLookup(file, i1, i2){
