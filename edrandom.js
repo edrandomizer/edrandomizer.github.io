@@ -114,7 +114,7 @@ function randomizeEnemies(iso, noTrapperList=[], skipList=[]){
 }
 
 function preventEnemyRandomizationSoftlocks(iso){
-	
+
 	addFlagSetToScript(iso, 1920, [[0x80725E70, 2]]);//skip antorbok zombie cutscene
 }
 
@@ -164,7 +164,7 @@ function roomTextShuffle(iso){
 
 	for(var special in pools){
 		var pc=pools[special].slice(0);
-		
+
 		shuffle(pc);
 
 		for(var rIndex in pools[special]){
@@ -211,15 +211,15 @@ function randomizeRunes(iso){
 					 [1368, 1],//256
 					 [2129, 0xe4],//65536
 					 [1375, 1], //131072
-					 [[1376, 1], [2629, 0xb9]], //262144, I think the second is unsed but it's here for completeness
-					 ]; 
+					 [[1376, 1], [2692, 0xb9]], //262144, I think the first is unsed but it's here for completeness
+					 ];
 
 	var rand=[];
 
 	for(var i=0; i<14; i++){
 		rand.push(1<<i);
 	}
-	
+
 	for(var i=0; i<3; i++){
 		rand.push(65536<<i);
 	}
@@ -249,15 +249,23 @@ function removeSpellGates(iso){
 	prependToScript(iso, 1621, [["GETGLOBAL", "fn30"], ["PUSHINT", bitAddressToFlag(0x80725E63, 5)], ["PUSHINT", 0], ["CALL", 0, 0]]);
 
 	prependToScript(iso, 788, [["GETGLOBAL", "fn73"], ["PUSHINT", 1098], ["CALL", 0, 0]]);//run the window dispel script at the top of the paul page examine script
-	
+
 	var randomAlignment=Math.floor(Math.random()*3)+1;
-	
+
 	prependToScript(iso, 1920, [["GETGLOBAL", "ed15"], ["PUSHINT", 1], ["PUSHINT", randomAlignment], ["CALL", 0, 0]]);//Randomly assign an alignment at the beginning of the game
 
 
 	claimArtifact=findScript(iso, 655);
 	claimArtifact.instructions[0x8d]=claimArtifact.buildInstruction("PUSHINT", randomAlignment);
 	replaceScript(iso, 655, claimArtifact);
+
+	clockExamine=findScript(iso, 1551);
+	replaceScript(iso, 2440, clockExamine);//Replace the clock door script with the clock examine script
+
+	//When the examine prompt for roberto's key shows, disable the wall
+	prependToScript(iso, 2453, [["GETGLOBAL", "fn30"], ["PUSHINT", bitAddressToFlag(0x80725E8E, 2)], ["PUSHINT", 0], ["CALL", 0, 0]]);
+	//Same for ladder
+	prependToScript(iso, 1061, [["GETGLOBAL", "fn30"], ["PUSHINT", bitAddressToFlag(0x80725E2C, 6)], ["PUSHINT", 0], ["CALL", 0, 0]]);
 
 	addFlagSetToScript(iso, 1920,  [[0x80725E46, 0], [0x80725E47, 7], //Anthony urns
 									[0x80725E28, 3], //Prevent spell tutorial softlock
@@ -286,8 +294,8 @@ function removeSpellGates(iso){
 									//[0x80725E46 , 5], //Unlocks binding hall door
 
 									//Roberto:
-									[0x80725E2C, 6], //smasher ladder b-prompt (to avoid summon zombie)
-									[0x80725E8E, 2], //removes invisible wall in order to get the key
+									//[0x80725E2C, 6], //smasher ladder b-prompt (to avoid summon zombie)
+									//[0x80725E8E, 2], //removes invisible wall in order to get the key
 
 									//Peter
 									[0x80725E50, 1], //Unlocks Coal room, despite the dead body still being there (to avoid Summon trapper)
