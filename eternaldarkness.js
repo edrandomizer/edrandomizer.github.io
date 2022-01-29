@@ -626,6 +626,20 @@ function bitAddressToFlag(address, bit){
 	return block+single+bit;
 }
 
+function flagToBitAddress(flag){
+	const base=0x80725E24;
+
+	const bit=flag%8;
+
+	flag=Math.floor(flag/8);
+
+	const block=4*Math.floor(flag/4);
+
+	const off=3-(flag%4);
+
+	return [base+block+off, bit];
+}
+
 function findScript(iso, script){
 	var i=0;
 	while(i<14){

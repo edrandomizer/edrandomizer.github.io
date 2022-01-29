@@ -215,6 +215,10 @@ function randomizeRunes(iso){
 
 
 function removeSpellGates(iso){
+	
+	//Unset a flag right before lindsey's damage field creation, prevents the field from being created
+	prependToScript(iso, 1621, [["GETGLOBAL", "fn30"], ["PUSHINT", bitAddressToFlag(0x80725E63, 5)], ["PUSHINT", 0], ["CALL", 0, 0]]);
+	
 	addFlagSetToScript(iso, 1920,  [[0x80725E46, 0], [0x80725E47, 7], //Anthony urns
 									[0x80725E28, 3], //Prevent spell tutorial softlock
 									[0x80725E6D, 7], //Always show magic meter
@@ -230,8 +234,8 @@ function removeSpellGates(iso){
 									//Lindsey:
 								//	[0x80725E52, 7], //Unlocks Aretak barrier (bit [7] might be important too)
 								//	[0x80725E51, 0], //Unlocks Tier barrier (bit [4] might be important too)
-									[0x80725E45, 0], //
-									[0x80725E46, 7], //these control the silver statue examine, I assume if you activate the necklace one then you'll only need the silver bracelet to open the gate. This might be important because idk if there is a flag for the necklace damage field
+									//[0x80725E45, 0], //
+									//[0x80725E46, 7], //these control the silver statue examine, I assume if you activate the necklace one then you'll only need the silver bracelet to open the gate. This might be important because idk if there is a flag for the necklace damage field
 									[0x80725E53, 7], //Mantorok Rune examine (might work even with the wall collision)
 									[0x80725E2A, 1], //
 									[0x80725E2A, 2], //
