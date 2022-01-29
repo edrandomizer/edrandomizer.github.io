@@ -85,7 +85,12 @@
 								roomTextShuffle(niso);
 							}
 							if(document.getElementById("enemy_control").checked){
-								randomizeEnemies(niso, []);
+								randomizeEnemies(niso, [
+								null, //alex
+								null, //pious
+								[null, null, [0, 1]], //Two locked room zombies in ellia
+
+								]);
 							}
 							if(document.getElementById("rune_control").checked){
 								randomizeRunes(niso);

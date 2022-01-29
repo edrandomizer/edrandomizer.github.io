@@ -1,5 +1,5 @@
 
-function randomizeEnemies(iso, skipList){
+function randomizeEnemies(iso, noTrapperList=[], skipList=[]){
 
 	var pious=new NPC(iso.fst.getFile("Npcs1.npc"));
 	var lindsey=new NPC(iso.fst.getFile("Npcs6.npc"));
@@ -51,13 +51,13 @@ function randomizeEnemies(iso, skipList){
 		while(j<c){
 			var type=new DataView(npcs.entries[0][j]).getUint16(0x18, false);
 
-			if(candidates.indexOf(type)!==-1 && (!skipList[i] || !skipList[i][0] || skipList[i].indexOf(j)===-1) ){
+			if(candidates.indexOf(type)!==-1 && (!skipList[i] || !skipList[i][0] || skipList[i][0].indexOf(j)===-1) ){
 				var b=new Uint8Array(npcs.entries[0][j]);
 				var maxIndex=templates.length;
 
 				var script=new DataView(npcs.entries[0][j]).getUint16(0x1c, false);
 
-				if(script!=0xFFFF){
+				if(script!=0xFFFF || (noTrapperList[i] && noTrapperList[i][0] && noTrapperList[i][0].indexOf(j)!==-1)){
 					maxIndex=runeSafe;
 				}
 				var rand=Math.floor(Math.random()*maxIndex);
@@ -79,7 +79,7 @@ function randomizeEnemies(iso, skipList){
 
 				var script=new DataView(npcs.entries[3][j]).getUint16(0x2a, false);
 
-				if(script!=0xFFFF){
+				if(script!=0xFFFF || (noTrapperList[i] && noTrapperList[i][3] && noTrapperList[i][3].indexOf(j)!==-1)){
 					maxIndex=runeSafe;
 				}
 
@@ -216,7 +216,8 @@ function randomizeRunes(iso){
 
 function removeSpellGates(iso){
 	addFlagSetToScript(iso, 1920,  [[0x80725E46, 0], [0x80725E47, 7], //Anthony urns
-
+									[0x80725E28, 3], //Prevent spell tutorial softlock
+									[0x80725E6D, 7], //Always show magic meter
 									//Karim:
 									//[0x80725E31, 0], //Unlocks Santak barrier
 									//[0x80725E33, 0], //Activates ladder b-promt of the santak barrier
