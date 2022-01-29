@@ -215,10 +215,12 @@ function randomizeRunes(iso){
 
 
 function removeSpellGates(iso){
-	
+
 	//Unset a flag right before lindsey's damage field creation, prevents the field from being created
 	prependToScript(iso, 1621, [["GETGLOBAL", "fn30"], ["PUSHINT", bitAddressToFlag(0x80725E63, 5)], ["PUSHINT", 0], ["CALL", 0, 0]]);
-	
+
+	prependToScript(iso, 788, [["GETGLOBAL", "fn73"], ["PUSHINT", 1098], ["CALL", 0, 0]]);
+
 	addFlagSetToScript(iso, 1920,  [[0x80725E46, 0], [0x80725E47, 7], //Anthony urns
 									[0x80725E28, 3], //Prevent spell tutorial softlock
 									[0x80725E6D, 7], //Always show magic meter
@@ -270,7 +272,7 @@ function removeSpellGates(iso){
 									[0x80725E60, 6], //Unlocks 2nd floor room, avoids enchant
 									[0x80725E51, 2], //Unlocks the kitchen gladius lock, avoids enchant
 									[0x80725E68, 7], //Reveals the dresser
-									[0x80725E7B, 3], //Changes the stained glass examine, but I think Paul page examine is still somehow tied to the dispel cutscene because the b-prompt is still not there and this is the only flag that changes during this
+									//[0x80725E7B, 3], //Changes the stained glass examine, but I think Paul page examine is still somehow tied to the dispel cutscene because the b-prompt is still not there and this is the only flag that changes during this
 									[0x80725E49, 7], //"beating Paul", allows to play the piano
 									[0x80725E48, 0], //"beating Roberto", allows to survey the picture on the tome room
 									[0x80725E4E, 7], //Unlocks basement door
