@@ -1,5 +1,15 @@
 
+
+function shuffle(arr) {
+	for (let i = arr.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[arr[i], arr[j]] = [arr[j], arr[i]];
+	}
+}
+
 function randomizeEnemies(iso, noTrapperList=[], skipList=[]){
+
+	preventEnemyRandomizationSoftlocks(iso);
 
 	var pious=new NPC(iso.fst.getFile("Npcs1.npc"));
 	var lindsey=new NPC(iso.fst.getFile("Npcs6.npc"));
@@ -103,6 +113,11 @@ function randomizeEnemies(iso, noTrapperList=[], skipList=[]){
 	}
 }
 
+function preventEnemyRandomizationSoftlocks(iso){
+	
+	addFlagSetToScript(iso, 1920, [[0x80725E70, 2]]);//skip antorbok zombie cutscene
+}
+
 function roomTextShuffle(iso){
 
 	var gpks=[];
@@ -149,7 +164,8 @@ function roomTextShuffle(iso){
 
 	for(var special in pools){
 		var pc=pools[special].slice(0);
-		pc.sort(() => { return Math.random()-0.5;});
+		
+		shuffle(pc);
 
 		for(var rIndex in pools[special]){
 			var source=pc[rIndex];
@@ -192,23 +208,36 @@ function randomizeRunes(iso){
 					 [1373, 1], //8192
 					 [1365, 1], //32
 					 [1370, 1], //1024
-					 [1368, 1]]; //256
+					 [1368, 1],//256
+					 [2129, 0xe4],//65536
+					 [1375, 1], //131072
+					 [[1376, 1], [2629, 0xb9]], //262144, I think the second is unsed but it's here for completeness
+					 ]; 
 
 	var rand=[];
 
 	for(var i=0; i<14; i++){
 		rand.push(1<<i);
 	}
+	
+	for(var i=0; i<3; i++){
+		rand.push(65536<<i);
+	}
 
-	rand.sort((e)=>{return Math.random()-0.5;});
-
-	const source=new GPK(iso.fst.getFile("ScrLvl03.gpk"));
+	shuffle(rand);
 
 	var i=0;
-	for(var script of runeScripts){
-		const lua=new LUA(source.entries[script[0]]);
-		lua.instructions[script[1]]=lua.buildInstruction("PUSHINT", rand[i++]);
-		replaceScript(iso, script[0], lua.toBuffer());
+	for(var scripts of runeScripts){
+		var roll=rand[i++];
+		if(!Array.isArray(scripts[0])){
+			scripts=[scripts];
+		}
+
+		for(var script of scripts){
+			const lua=findScript(iso, script[0]);
+			lua.instructions[script[1]]=lua.buildInstruction("PUSHINT", roll);
+			replaceScript(iso, script[0], lua);
+		}
 	}
 
 }
@@ -219,7 +248,16 @@ function removeSpellGates(iso){
 	//Unset a flag right before lindsey's damage field creation, prevents the field from being created
 	prependToScript(iso, 1621, [["GETGLOBAL", "fn30"], ["PUSHINT", bitAddressToFlag(0x80725E63, 5)], ["PUSHINT", 0], ["CALL", 0, 0]]);
 
-	prependToScript(iso, 788, [["GETGLOBAL", "fn73"], ["PUSHINT", 1098], ["CALL", 0, 0]]);
+	prependToScript(iso, 788, [["GETGLOBAL", "fn73"], ["PUSHINT", 1098], ["CALL", 0, 0]]);//run the window dispel script at the top of the paul page examine script
+	
+	var randomAlignment=Math.floor(Math.random()*3)+1;
+	
+	prependToScript(iso, 1920, [["GETGLOBAL", "ed15"], ["PUSHINT", 1], ["PUSHINT", randomAlignment], ["CALL", 0, 0]]);//Randomly assign an alignment at the beginning of the game
+
+
+	claimArtifact=findScript(iso, 655);
+	claimArtifact.instructions[0x8d]=claimArtifact.buildInstruction("PUSHINT", randomAlignment);
+	replaceScript(iso, 655, claimArtifact);
 
 	addFlagSetToScript(iso, 1920,  [[0x80725E46, 0], [0x80725E47, 7], //Anthony urns
 									[0x80725E28, 3], //Prevent spell tutorial softlock
