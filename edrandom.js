@@ -250,10 +250,11 @@ function removeSpellGates(iso){
 
 	prependToScript(iso, 788, [["GETGLOBAL", "fn73"], ["PUSHINT", 1098], ["CALL", 0, 0]]);//run the window dispel script at the top of the paul page examine script
 
+	//prependToScript(iso, 2082, [["GETGLOBAL", "fn73"], ["PUSHINT", 2204], ["CALL", 0, 0]]);//Automatically fill in redgomor rune for edward
+
 	var randomAlignment=Math.floor(Math.random()*3)+1;
 
 	prependToScript(iso, 1920, [["GETGLOBAL", "ed15"], ["PUSHINT", 1], ["PUSHINT", randomAlignment], ["CALL", 0, 0]]);//Randomly assign an alignment at the beginning of the game
-
 
 	claimArtifact=findScript(iso, 655);
 	claimArtifact.instructions[0x8d]=claimArtifact.buildInstruction("PUSHINT", randomAlignment);
@@ -264,10 +265,17 @@ function removeSpellGates(iso){
 
 	//When the examine prompt for roberto's key shows, disable the wall
 	prependToScript(iso, 2453, [["GETGLOBAL", "fn30"], ["PUSHINT", bitAddressToFlag(0x80725E8E, 2)], ["PUSHINT", 0], ["CALL", 0, 0]]);
-	//Same for ladder
-	prependToScript(iso, 1061, [["GETGLOBAL", "fn30"], ["PUSHINT", bitAddressToFlag(0x80725E2C, 6)], ["PUSHINT", 0], ["CALL", 0, 0]]);
 
-	addFlagSetToScript(iso, 1920,  [[0x80725E46, 0], [0x80725E47, 7], //Anthony urns
+	robertoSmash=findScript(iso, 1385);
+	robertoSmash.instructions[0x14d]=robertoSmash.buildInstruction("PUSHINT", 0); 
+	replaceScript(iso, 1385, robertoSmash);
+
+	//Same for ladder
+	//prependToScript(iso, 1061, [["GETGLOBAL", "fn30"], ["PUSHINT", bitAddressToFlag(0x80725E2C, 6)], ["PUSHINT", 0], ["CALL", 0, 0]]);
+
+	addFlagSetToScript(iso, 1920,  [[0x80725E79, 6], //Pious Health Tutorial -> it might make health visible during pause menu on other chapters
+									[0x80725E7E, 5], //Ellia Sanity Tutorial -> it might make Sanity visible during pause menu on other chapters
+									[0x80725E46, 0], [0x80725E47, 7], //Anthony urns
 									[0x80725E28, 3], //Prevent spell tutorial softlock
 									[0x80725E6D, 7], //Always show magic meter
 									//Karim:

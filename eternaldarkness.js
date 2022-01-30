@@ -283,13 +283,13 @@ class LUA{
 			return code;
 		}
 		if(opcodes[code][1]=="U" || opcodes[1]=="L"){
-			return code | (a<<6);
+			return (code | (a<<6))>>>0;
 		}
 		if(opcodes[code][1]=="S" || opcodes[1]=="J"){
-			return code | ((a+0x01FFFFFF)<<6);
+			return (code | ((a+0x01FFFFFF)<<6))>>>0;
 		}
 		if(opcodes[code][1]=="AB"){
-			return code | (a<<15) | (( b &0x1FF) << 6);
+			return (code | (a<<15) | (( b &0x1FF) << 6))>>>0;
 		}
 		if(opcodes[code][1]=="K"){
 			var s=this.strings.indexOf(a);
@@ -297,7 +297,7 @@ class LUA{
 				s=this.strings.length;
 				this.strings.push(a);
 			}
-			return code | (s<<6);
+			return (code | (s<<6))>>>0;
 		}
 		if(opcodes[code][1]=="N"){
 			var n=this.numbers.indexOf(a);
@@ -305,7 +305,7 @@ class LUA{
 				s=this.numbers.length;
 				this.numbers.push(a);
 			}
-			return code | (n<<6);
+			return (code | (n<<6))>>>0;
 		}
 	}
 
