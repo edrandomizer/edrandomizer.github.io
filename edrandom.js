@@ -246,7 +246,7 @@ function randomizeRunes(iso){
 function removeSpellGates(iso){
 
 	//Unset a flag right before lindsey's damage field creation, prevents the field from being created
-	prependToScript(iso, 1621, [["GETGLOBAL", "fn30"], ["PUSHINT", bitAddressToFlag(0x80725E63, 5)], ["PUSHINT", 0], ["CALL", 0, 0]]);
+	prependToScript(iso, 1621, [["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E63, 5)], ["PUSHINT", 0], ["CALL", 0, 0]]);
 
 	prependToScript(iso, 788, [["GETGLOBAL", "fn73"], ["PUSHINT", 1098], ["CALL", 0, 0]]);//run the window dispel script at the top of the paul page examine script
 
@@ -264,8 +264,9 @@ function removeSpellGates(iso){
 	replaceScript(iso, 2440, clockExamine);//Replace the clock door script with the clock examine script
 
 	//When the examine prompt for roberto's key shows, disable the wall
-	prependToScript(iso, 2453, [["GETGLOBAL", "fn30"], ["PUSHINT", bitAddressToFlag(0x80725E8E, 2)], ["PUSHINT", 0], ["CALL", 0, 0]]);
+	prependToScript(iso, 2453, [["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E8E, 2)], ["PUSHINT", 0], ["CALL", 0, 0]]);
 
+	//The smasher cutscene no longer disables the ladder
 	robertoSmash=findScript(iso, 1385);
 	robertoSmash.instructions[0x14d]=robertoSmash.buildInstruction("PUSHINT", 0); 
 	replaceScript(iso, 1385, robertoSmash);
@@ -273,11 +274,27 @@ function removeSpellGates(iso){
 	//Same for ladder
 	//prependToScript(iso, 1061, [["GETGLOBAL", "fn30"], ["PUSHINT", bitAddressToFlag(0x80725E2C, 6)], ["PUSHINT", 0], ["CALL", 0, 0]]);
 
+	//remove michael trapper block
+	var michaelNpcs=new NPC(iso.getFile("Npcs11.npc"));
+	michaelNpcs.entries[1].splice(33, 1);//Delete obelisk npc
+	iso.getFile("Npcs11.npc").replace(michaelNpcs);
+
+	//Remove the enchantment requirement on michael's bomb
+	var michaelBomb=findScript(iso, 1883);
+	michaelBomb.instructions[0xc]=michaelBomb.buildInstruction("POP", 2);
+	michaelBomb.instructions[0x3d]=michaelBomb.buildInstruction("POP", 2);
+	replaceScript(iso, 1883, michaelBomb);
+
+	//Disable michael bind barrier when entering the room
+	prependToScript(iso, 526, [["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E71, 7)], ["PUSHINT", 0], ["CALL", 0, 0]]);
+
 	addFlagSetToScript(iso, 1920,  [[0x80725E79, 6], //Pious Health Tutorial -> it might make health visible during pause menu on other chapters
 									[0x80725E7E, 5], //Ellia Sanity Tutorial -> it might make Sanity visible during pause menu on other chapters
 									[0x80725E46, 0], [0x80725E47, 7], //Anthony urns
 									[0x80725E28, 3], //Prevent spell tutorial softlock
 									[0x80725E6D, 7], //Always show magic meter
+									[0x80725E6C, 1], //Activates Mix on the inventory
+									[0x80725E6C, 2], //Activates Mix tutorial
 									//Karim:
 									//[0x80725E31, 0], //Unlocks Santak barrier
 									//[0x80725E33, 0], //Activates ladder b-promt of the santak barrier
@@ -311,15 +328,14 @@ function removeSpellGates(iso){
 									[0x80725E2C, 7], //is related to defeating Black Guardian. No idea what to do about BG, I don't think there's a flag for the stained glass collision, and that would still softlock in chattur'gha because of the stronger force field
 									//We could either restrict Peter with logic to always be after having magick attack, or just set the BG to be dead since the start of the chapter (I think it's ID is 145 at the start)
 									//Edward:
-									[0x80725E6C, 1], //Activates Mix on the inventory, necessary for the basement key if Anthony hasn't happened yet
 									[0x80725E4C, 4], //Unlocks basement door. I think this doesn't break anything, you still need to defeat all Vampire phases in order to enter Ehn'gha
 
 									//Michael:
-									[0x80725E6C, 1], //Activates Mix on the inventory, necessary for the bomb if Anthony hasn't happened yet
 									[0x80725E51, 1], //Reveals Forgotten Corridor Door
 									[0x80725E50, 2], //Activates the b-prompt of the ladder behind the obelisk, but the collision is still there so is inaccessible anyways.
-									[0x80725E71, 7], //Deactivates Bind barrier
-									[0x80725E61, 7], //Activates escape sequence. This could be set to avoid logic for Summon Trapper (obelisk collision), with this flag set you'll enter the escape sequence when coming back from the worm bridge room
+									[0x80725EA0, 5], //Skip bind intro
+									[0x80725E25, 0], //Skip bind destroy
+									//[0x80725E61, 7], //Activates escape sequence. This could be set to avoid logic for Summon Trapper (obelisk collision), with this flag set you'll enter the escape sequence when coming back from the worm bridge room
 
 									//Alex:
 									[0x80725E49, 3], //"beating Anthony", it unlocks the spell page for Alex

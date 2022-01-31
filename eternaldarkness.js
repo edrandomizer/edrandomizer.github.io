@@ -282,10 +282,10 @@ class LUA{
 		if(opcodes[code][1]=="NONE"){
 			return code;
 		}
-		if(opcodes[code][1]=="U" || opcodes[1]=="L"){
+		if(opcodes[code][1]=="U" || opcodes[code][1]=="L"){
 			return (code | (a<<6))>>>0;
 		}
-		if(opcodes[code][1]=="S" || opcodes[1]=="J"){
+		if(opcodes[code][1]=="S" || opcodes[code][1]=="J"){
 			return (code | ((a+0x01FFFFFF)<<6))>>>0;
 		}
 		if(opcodes[code][1]=="AB"){
