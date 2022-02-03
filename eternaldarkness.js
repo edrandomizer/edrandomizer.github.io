@@ -302,7 +302,7 @@ class LUA{
 		if(opcodes[code][1]=="N"){
 			var n=this.numbers.indexOf(a);
 			if(n===-1){
-				s=this.numbers.length;
+				n=this.numbers.length;
 				this.numbers.push(a);
 			}
 			return (code | (n<<6))>>>0;

@@ -242,6 +242,75 @@ function randomizeRunes(iso){
 
 }
 
+function fixRuneSpireCrashes(iso){
+
+	//Skip the puzzle controls for en'gha runes
+	var edRunes=findScript(iso, 2082);
+	edRunes.instructions[0x32]=edRunes.buildInstruction("GETGLOBAL", "fn73");
+	edRunes.instructions[0x33]=edRunes.buildInstruction("PUSHINT", 2204);
+	edRunes.instructions[0x34]=edRunes.buildInstruction("CALL", 0, 0);
+	edRunes.instructions[0x35]=edRunes.buildInstruction("GETGLOBAL", "fn1");
+	edRunes.instructions[0x36]=edRunes.buildInstruction("PUSHINT", 0);
+	edRunes.instructions[0x37]=edRunes.buildInstruction("CALL", 0, 0);
+	edRunes.instructions[0x38]=edRunes.buildInstruction("END");
+	replaceScript(iso, 2082, edRunes);
+
+	//Replace the check for all the runes being active with a check that the portals are activated
+	var runeCheck=findScript(iso, 2204);
+	var cur=runeCheck.instructions.length;
+
+	//jmp patch
+	runeCheck.instructions[0x11c]=runeCheck.buildInstruction("JMP", cur-0x11c-1);
+
+	//Check which level we're on
+	runeCheck.instructions[cur++]=runeCheck.buildInstruction("GETGLOBAL", "ed143");
+	runeCheck.instructions[cur++]=runeCheck.buildInstruction("CALL", 3, 1);
+	runeCheck.instructions[cur++]=runeCheck.buildInstruction("PUSHINT", 9);
+
+	var alexJmp=cur++;
+
+	//Check edwards's pillars
+	var edFlag=45;
+	for(var i=0; i<9; i++){
+		runeCheck.instructions[cur++]=runeCheck.buildInstruction("GETGLOBAL", "fn30");
+		runeCheck.instructions[cur++]=runeCheck.buildInstruction("PUSHINT", edFlag+i);
+		runeCheck.instructions[cur++]=runeCheck.buildInstruction("CALL", 3, 1);
+		runeCheck.instructions[cur++]=runeCheck.buildInstruction("PUSHINT", 1);
+		runeCheck.instructions[cur]=runeCheck.buildInstruction("JMPNE", 0x14b-cur-1);
+		cur++;
+	}
+
+	runeCheck.instructions[cur]=runeCheck.buildInstruction("JMP", 0x140-cur-1);
+	cur++;
+
+	runeCheck.instructions[alexJmp]=runeCheck.buildInstruction("JMPNE", cur-alexJmp-1);
+
+	//Check alex's pillars
+	var alexFlag=24;
+	for(var i=0; i<9;i++){
+		runeCheck.instructions[cur++]=runeCheck.buildInstruction("GETGLOBAL", "fn30");
+		runeCheck.instructions[cur++]=runeCheck.buildInstruction("PUSHINT", alexFlag+i);
+		runeCheck.instructions[cur++]=runeCheck.buildInstruction("CALL", 3, 1);
+		runeCheck.instructions[cur++]=runeCheck.buildInstruction("PUSHINT", 1);
+		runeCheck.instructions[cur]=runeCheck.buildInstruction("JMPNE", 0x14b-cur-1);
+		cur++;
+	}
+
+	runeCheck.instructions[cur]=runeCheck.buildInstruction("JMP", 0x140-cur-1);
+	cur++;
+	runeCheck.instructions[cur++]=runeCheck.buildInstruction("END");
+
+	replaceScript(iso, 2204, runeCheck);
+
+	//Accept any runes as a solution to the puzzle
+	var runeSolution=findScript(iso, 2216);
+	for(var addr of [0x39, 0x5b, 0xb9, 0xe7, 0x115, 0x162, 0x174, 0x186, 0x1d4, 0x1f6]){
+		runeSolution.instructions[addr]=runeSolution.buildInstruction("POP", 2);
+	}
+	replaceScript(iso, 2216, runeSolution);
+	//80169844
+}
+
 
 function removeSpellGates(iso){
 
@@ -249,8 +318,6 @@ function removeSpellGates(iso){
 	prependToScript(iso, 1621, [["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E63, 5)], ["PUSHINT", 0], ["CALL", 0, 0]]);
 
 	prependToScript(iso, 788, [["GETGLOBAL", "fn73"], ["PUSHINT", 1098], ["CALL", 0, 0]]);//run the window dispel script at the top of the paul page examine script
-
-	//prependToScript(iso, 2082, [["GETGLOBAL", "fn73"], ["PUSHINT", 2204], ["CALL", 0, 0]]);//Automatically fill in redgomor rune for edward
 
 	var randomAlignment=Math.floor(Math.random()*3)+1;
 
@@ -268,7 +335,7 @@ function removeSpellGates(iso){
 
 	//The smasher cutscene no longer disables the ladder
 	robertoSmash=findScript(iso, 1385);
-	robertoSmash.instructions[0x14d]=robertoSmash.buildInstruction("PUSHINT", 0); 
+	robertoSmash.instructions[0x14d]=robertoSmash.buildInstruction("PUSHINT", 0);
 	replaceScript(iso, 1385, robertoSmash);
 
 	//Same for ladder
@@ -287,6 +354,8 @@ function removeSpellGates(iso){
 
 	//Disable michael bind barrier when entering the room
 	prependToScript(iso, 526, [["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E71, 7)], ["PUSHINT", 0], ["CALL", 0, 0]]);
+
+	fixRuneSpireCrashes(iso);
 
 	addFlagSetToScript(iso, 1920,  [[0x80725E79, 6], //Pious Health Tutorial -> it might make health visible during pause menu on other chapters
 									[0x80725E7E, 5], //Ellia Sanity Tutorial -> it might make Sanity visible during pause menu on other chapters
