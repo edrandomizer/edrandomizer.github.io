@@ -200,7 +200,7 @@ class DOL {
 		if(addr % 4!=0){
 			throw("Must inject at a 4 byte alignment");
 		}
-		
+
 		code=asBuf(code);
 
 		const branchOpcode=0x48000000;
@@ -360,7 +360,7 @@ class File{
 		this.buffer=asBuf(buffer);
 		this.data=new DataView(this.buffer);
 	}
-	
+
 	toBuffer(){
 		return this.buffer;
 	}
@@ -624,7 +624,7 @@ class GCISO {
 		this.fst=new FST(buffer, this.header.fstOffset, this.header.fstSize);
 
 	}
-	
+
 	getFile(name){
 		return this.fst.getFile(name);
 	}

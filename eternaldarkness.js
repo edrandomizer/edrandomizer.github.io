@@ -81,7 +81,7 @@ class GPK{
 			this.entries=[];
 			return;
 		}
-		
+
 		buffer=asBuf(buffer);
 		const raw=new DataView(buffer);
 
@@ -473,48 +473,53 @@ class LUA{
 		return b;
 	}
 
-}
+	addJmpPatch(location, rejoin, code){
+		var cur=this.instructions.length;
 
-function addFlagSetToScript(iso, script, flags){
-	var instructions=[];
-	for(var flag of flags){
-		var edFlag=bitAddressToFlag(flag[0], flag[1]);
+		this.instructions[location]=this.buildInstruction("JMP", cur-location-1);
 
-		instructions.push(["GETGLOBAL", "fn29"]);
-		instructions.push(["PUSHINT", edFlag]);
-		instructions.push(["PUSHINT", 1]);
-		instructions.push(["CALL", 0, 0]);
+		for(var inst of code){
+			if(inst==="REJOIN"){
+				this.instructions[cur]=this.buildInstruction("JMP", rejoin-cur-1);
+				cur++;
+			}else{
+				this.instructions[cur++]=this.buildInstruction(...inst);
+			}
+		}
 
+		this.instructions[cur]=this.buildInstruction("JMP", rejoin-cur-1);
+		this.instructions[cur+1]=this.buildInstruction("END");
 	}
 
-	prependToScript(iso, script, instructions);
-}
-
-function prependToScript(iso, script, instructions){
-
-	for(var i=0; i<14; i++){
-		if(i==12){
-			continue;
-		}
-
-		var g=new GPK(iso.fst.getFile("ScrLvl"+("00"+i).slice(-2)+".gpk"));
-
-		if(!g.entries[script]){
-			continue;
-		}
-
-		var l=new LUA(g.entries[script]);
-
+	prepend(code){
 		var ni=[];
-		for(var inst of instructions){
-			ni.push(l.buildInstruction(...inst));
+		for(var inst of code){
+			ni.push(this.buildInstruction(...inst));
 		}
 
-		l.instructions=ni.concat(l.instructions);
-
-		replaceScript(iso, script, l.toBuffer());
-
+		this.instructions=ni.concat(this.instructions);
 	}
+
+	addFlagSet(flags){
+		var newInstructions=[];
+		for(var flag of flags){
+			var edFlag=bitAddressToFlag(flag[0], flag[1]);
+
+			newInstructions.push(["GETGLOBAL", "fn29"]);
+			newInstructions.push(["PUSHINT", edFlag]);
+			newInstructions.push(["PUSHINT", 1]);
+			newInstructions.push(["CALL", 0, 0]);
+
+		}
+		this.prepend(newInstructions);
+	}
+
+}
+
+function modifyScript(iso, script, cb){
+	var lua=findScript(iso, script);
+	cb(lua);
+	replaceScript(iso, script, lua);
 }
 
 function getAllScripts(iso){
@@ -539,7 +544,7 @@ function searchScripts(iso, code){
 	var scripts=getAllScripts(iso);
 
 	var results=[];
-	
+
 	for(var scriptId in scripts){
 		var script=scripts[scriptId];
 		for(var i=0; i<script.instructions.length-(code.length-1); i++){

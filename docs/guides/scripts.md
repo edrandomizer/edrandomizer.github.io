@@ -20,29 +20,29 @@ credits.parseInstruction(credits.instructions[0]); //output the first instructio
 credits.instructions[0]=credits.buildInstruction("PUSHINT", 16); //Replace the first instruction with PUSHINT 16
 ```
 
+## Modding scripts
+
+Scripts can be modded by simply manually altering their instructions. The modifyScript function is provided to make it easier to search, modify then replace a script. LUA objects support the prepend function to add instructions to the beginning of the script and the addJmpPatch to add a jmp patch. 
+
+```javascript
+chatRune=findScript(iso, 1360); //script which grants the chatturga rune
+chatRune.parseInstruction(chatRune.instructions[5]); //Gives "PUSHINT 1", the instruction that controls which rune you get
+chatRune.instructions[5]=chatRune.buildInstruction("PUSHINT", 8); //Gives the mantarok rune instead
+replaceScript(iso, 1360, chatRune); //Save the changes
+
+modifyScript(iso, 1360, (lua) => { lua.instructions[5]=lua.buildInstruction("PUSHINT", 8);}); //Same modification using modifyScript
+
+modifyScript(iso, 1920, (lua) => { lua.prepend([["GETGLOBAL", "ed10"], ["PUSHINT", 8], ["CALL", 0, 0]]);}); //Give the mantarok rune at the start of the rats script
+```
+
 ## Flags
 
-The numbering system used by flags goes left to right in 4 byte chunks and right to left within those chunks. The bitAddressToFlag method is provided to convert from DME addresses. Note that the second argument runs from 0-7 rather than 1-8 like DME does. The addFlagSetToScript method is provided to easily add a block of flag sets to the start of scripts.
+The numbering system used by flags goes left to right in 4 byte chunks and right to left within those chunks. The bitAddressToFlag method is provided to convert from DME addresses. Note that the second argument runs from 0-7 rather than 1-8 like DME does. The addFlagSet method of the LUA object is provided to easily add a block of flag sets to the start of scripts.
 
 ```javascript
 flag=bitAddressToFlag(0x80725E6C, 1); //The flag to activate mix in the inventory
 
-addFlagSetToScript(iso, 1920, [[0x80725E6C, 1], [0x80725E46, 0]]); //Activate mix and place anthony's blue urn right after the rats cutscene
-```
-
-## Modding scripts
-
-Scripts can be modded by simply manually altering their instructions. You can use the prependToScript function to add a block of instructions to the beginning of a script.
-
-```javascript
-chatRune=findScript(iso, 1360); //script which grants the chatturga rune
-
-chatRune.parseInstruction(chatRune.instructions[5]); //Gives "PUSHINT 1", the instruction that controls which rune you get
-chatRune.instructions[5]=chatRune.buildInstruction("PUSHINT", 8); //Gives the mantarok rune instead
-
-replaceScript(iso, 1360, chatRune); //Save the changes
-
-prependToScript(iso, 1920, [["GETGLOBAL", "ed10"], ["PUSHINT", 8], ["CALL", 0, 0]]); //Give the mantarok rune at the start of the rats script
+modifyScript(iso, 1920, (lua) => { lua.addFlagSet([[0x80725E6C, 1], [0x80725E46, 0]]);});//Activate mix and place anthony's blue urn right after the rats cutscene
 ```
 
 ## Searching scripts

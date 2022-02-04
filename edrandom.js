@@ -114,8 +114,7 @@ function randomizeEnemies(iso, noTrapperList=[], skipList=[]){
 }
 
 function preventEnemyRandomizationSoftlocks(iso){
-
-	addFlagSetToScript(iso, 1920, [[0x80725E70, 2]]);//skip antorbok zombie cutscene
+	modifyScript(iso, 1920, (s)=>{s.addFlagSet([[0x80725E70, 2]]);});
 }
 
 function roomTextShuffle(iso){
@@ -195,33 +194,56 @@ function roomTextShuffle(iso){
 }
 
 function randomizeRunes(iso){
-	var runeScripts=[[1367, 1], //128
-					 [1363, 25], //8
-					 [1360, 5], //1
-					 [1361, 5], //2
-					 [1362, 5], //4
-					 [1366, 1], //64
-					 [1372, 1], //4096
-					 [1371, 1], //2048
-					 [1364, 1], //16
-					 [1369, 1], //512
-					 [1373, 1], //8192
-					 [1365, 1], //32
-					 [1370, 1], //1024
-					 [1368, 1],//256
-					 [2129, 0xe4],//65536
-					 [1375, 1], //131072
-					 [[1376, 1], [2692, 0xb9]], //262144, I think the first is unsed but it's here for completeness
+
+	var runeScripts=[[1367, 0, 0], //128
+					 [1363, 24, 5], //8
+					 [1360, 4, 0], //1
+					 [1361, 4, 0], //2
+					 [1362, 4, 0], //4
+					 [1366, 0, 0], //64
+					 [1372, 0, 0], //4096
+					 [1371, 0, 0], //2048
+					 [1364, 0, 0], //16
+					 [1369, 0, 0], //512
+					 [1373, 0, 0], //8192
+					 [1365, 0, 0], //32
+					 [1370, 0, 0], //1024
+					 [1368, 0, 0],//256
+					 [2129, 0xe3, 5],//65536
+					 [1375, 0, 0], //131072
+					 [[1376, 0, 0], [2692, 0xb8, 1]], //262144, I think the first is unsed but it's here for completeness
 					 ];
+
+
 
 	var rand=[];
 
+	//runes
 	for(var i=0; i<14; i++){
-		rand.push(1<<i);
+		rand.push([0, 1<<i]);
+	}
+	for(var i=16; i<20; i++){
+		rand.push([0, 1<<i]);
 	}
 
-	for(var i=0; i<3; i++){
-		rand.push(65536<<i);
+	var scrollModels=[];
+
+	//scrolls
+	for(var i=32; i<45; i++){
+		if(i==38){
+			continue;
+		}
+
+		rand.push([1, i]);
+		scrollModels.push(i);
+	}
+
+	var codexModels=[];
+
+	//codices
+	for(var i=242; i<256; i++){
+		rand.push([2, i]);
+		codexModels.push(i);
 	}
 
 	shuffle(rand);
@@ -234,12 +256,75 @@ function randomizeRunes(iso){
 		}
 
 		for(var script of scripts){
-			const lua=findScript(iso, script[0]);
-			lua.instructions[script[1]]=lua.buildInstruction("PUSHINT", roll);
-			replaceScript(iso, script[0], lua);
+
+			if(roll[0]===0){
+				modifyScript(iso, script[0], (s)=> {
+					s.instructions[script[1]+1]=s.buildInstruction("PUSHINT", roll[1]);
+				});
+			}else if(roll[0]===1){
+				modifyScript(iso, script[0], (s)=>{
+					s.addJmpPatch(script[1], [script[1]+3], [
+						["GETGLOBAL", "ed73"],
+						["PUSHINT", roll[1]],
+						["PUSHINT", 65536],
+						["CALL", script[2], 0]
+					]);
+				});
+			}else if(roll[0]===2){
+				modifyScript(iso, script[0], (s)=>{
+					s.instructions[script[1]]=s.buildInstruction("GETGLOBAL", "ed72");
+					s.instructions[script[1]+1]=s.buildInstruction("PUSHINT", roll[1]);
+				});
+			}else{
+				throw "Bad reward type";
+			}
 		}
 	}
+	var code=[];
 
+	const addRollCode=(code, model, roll)=>{
+		code.push(["GETLOCAL", 1]);
+		code.push(["PUSHINT", model]);
+		code.push(["JMPNE", roll[0]==1 ? 5 : 4]);
+
+		if(roll[0]===0){
+			code.push(["GETGLOBAL", "ed10"]);
+			code.push(["PUSHINT", roll[1]]);
+			code.push(["CALL", 2, 0]);
+			code.push("REJOIN");
+		}else if(roll[0]===1){
+			code.push(["GETGLOBAL", "ed73"]);
+			code.push(["PUSHINT", roll[1]]);
+			code.push(["PUSHINT", 65536]);
+			code.push(["CALL", 2, 0]);
+			code.push("REJOIN");
+		}else if(roll[0]===2){
+			code.push(["GETGLOBAL", "ed72"]);
+			code.push(["PUSHINT", roll[1]]);
+			code.push(["CALL", 2, 0]);
+			code.push("REJOIN");
+		}else{
+			throw "Bad reward type";
+		}
+	};
+
+	for(var model of codexModels){
+		addRollCode(code, model, rand[i++]);
+	}
+
+	modifyScript(iso, 1985, (s)=>{
+		s.addJmpPatch(6, 9, code);
+	});
+
+	code=[];
+
+	for(var model of scrollModels){
+		addRollCode(code, model, rand[i++]);
+	}
+
+	modifyScript(iso, 2022, (s)=>{
+		s.addJmpPatch(6, 10, code);
+	});
 }
 
 function fixRuneSpireCrashes(iso){
@@ -308,20 +393,19 @@ function fixRuneSpireCrashes(iso){
 		runeSolution.instructions[addr]=runeSolution.buildInstruction("POP", 2);
 	}
 	replaceScript(iso, 2216, runeSolution);
-	//80169844
 }
 
 
 function removeSpellGates(iso){
 
 	//Unset a flag right before lindsey's damage field creation, prevents the field from being created
-	prependToScript(iso, 1621, [["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E63, 5)], ["PUSHINT", 0], ["CALL", 0, 0]]);
+	modifyScript(iso, 1621, (s)=> {s.prepend([["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E63, 5)], ["PUSHINT", 0], ["CALL", 0, 0]]);});
 
-	prependToScript(iso, 788, [["GETGLOBAL", "fn73"], ["PUSHINT", 1098], ["CALL", 0, 0]]);//run the window dispel script at the top of the paul page examine script
+	modifyScript(iso, 788, (s)=>{s.prepend([["GETGLOBAL", "fn73"], ["PUSHINT", 1098], ["CALL", 0, 0]]);});//run the window dispel script at the top of the paul page examine script
 
 	var randomAlignment=Math.floor(Math.random()*3)+1;
 
-	prependToScript(iso, 1920, [["GETGLOBAL", "ed15"], ["PUSHINT", 1], ["PUSHINT", randomAlignment], ["CALL", 0, 0]]);//Randomly assign an alignment at the beginning of the game
+	modifyScript(iso, 1920, (s)=> {s.prepend([["GETGLOBAL", "ed15"], ["PUSHINT", 1], ["PUSHINT", randomAlignment], ["CALL", 0, 0]]);});//Randomly assign an alignment at the beginning of the game
 
 	claimArtifact=findScript(iso, 655);
 	claimArtifact.instructions[0x8d]=claimArtifact.buildInstruction("PUSHINT", randomAlignment);
@@ -331,15 +415,12 @@ function removeSpellGates(iso){
 	replaceScript(iso, 2440, clockExamine);//Replace the clock door script with the clock examine script
 
 	//When the examine prompt for roberto's key shows, disable the wall
-	prependToScript(iso, 2453, [["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E8E, 2)], ["PUSHINT", 0], ["CALL", 0, 0]]);
+	modifyScript(iso, 2453, (s)=> {s.prepend([["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E8E, 2)], ["PUSHINT", 0], ["CALL", 0, 0]]);});
 
 	//The smasher cutscene no longer disables the ladder
 	robertoSmash=findScript(iso, 1385);
 	robertoSmash.instructions[0x14d]=robertoSmash.buildInstruction("PUSHINT", 0);
 	replaceScript(iso, 1385, robertoSmash);
-
-	//Same for ladder
-	//prependToScript(iso, 1061, [["GETGLOBAL", "fn30"], ["PUSHINT", bitAddressToFlag(0x80725E2C, 6)], ["PUSHINT", 0], ["CALL", 0, 0]]);
 
 	//remove michael trapper block
 	var michaelNpcs=new NPC(iso.getFile("Npcs11.npc"));
@@ -353,72 +434,72 @@ function removeSpellGates(iso){
 	replaceScript(iso, 1883, michaelBomb);
 
 	//Disable michael bind barrier when entering the room
-	prependToScript(iso, 526, [["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E71, 7)], ["PUSHINT", 0], ["CALL", 0, 0]]);
+	modifyScript(iso, 526, (s)=> {s.prepend([["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E71, 7)], ["PUSHINT", 0], ["CALL", 0, 0]]);});
 
 	fixRuneSpireCrashes(iso);
 
-	addFlagSetToScript(iso, 1920,  [[0x80725E79, 6], //Pious Health Tutorial -> it might make health visible during pause menu on other chapters
-									[0x80725E7E, 5], //Ellia Sanity Tutorial -> it might make Sanity visible during pause menu on other chapters
-									[0x80725E46, 0], [0x80725E47, 7], //Anthony urns
-									[0x80725E28, 3], //Prevent spell tutorial softlock
-									[0x80725E6D, 7], //Always show magic meter
-									[0x80725E6C, 1], //Activates Mix on the inventory
-									[0x80725E6C, 2], //Activates Mix tutorial
-									//Karim:
-									//[0x80725E31, 0], //Unlocks Santak barrier
-									//[0x80725E33, 0], //Activates ladder b-promt of the santak barrier
-									//[0x80725E47, 4], //Unlocks Narokath barrier and gives ladder b-prompt
-									[0x80725E4C, 3], //Enchanted Ram Dao door examine
-									//Max:
-									[0x80725E6F, 3], //Basement door revealed
-									//[0x80725E9B, 3], //Unlock Bankorok barrier
+	modifyScript(iso, 1920, (s)=> {s.addFlagSet([[0x80725E79, 6], //Pious Health Tutorial -> it might make health visible during pause menu on other chapters
+												[0x80725E7E, 5], //Ellia Sanity Tutorial -> it might make Sanity visible during pause menu on other chapters
+												[0x80725E46, 0], [0x80725E47, 7], //Anthony urns
+												[0x80725E28, 3], //Prevent spell tutorial softlock
+												[0x80725E6D, 7], //Always show magic meter
+												[0x80725E6C, 1], //Activates Mix on the inventory
+												[0x80725E6C, 2], //Activates Mix tutorial
+												//Karim:
+												//[0x80725E31, 0], //Unlocks Santak barrier
+												//[0x80725E33, 0], //Activates ladder b-promt of the santak barrier
+												//[0x80725E47, 4], //Unlocks Narokath barrier and gives ladder b-prompt
+												[0x80725E4C, 3], //Enchanted Ram Dao door examine
+												//Max:
+												[0x80725E6F, 3], //Basement door revealed
+												//[0x80725E9B, 3], //Unlock Bankorok barrier
 
-									//Lindsey:
-								//	[0x80725E52, 7], //Unlocks Aretak barrier (bit [7] might be important too)
-								//	[0x80725E51, 0], //Unlocks Tier barrier (bit [4] might be important too)
-									//[0x80725E45, 0], //
-									//[0x80725E46, 7], //these control the silver statue examine, I assume if you activate the necklace one then you'll only need the silver bracelet to open the gate. This might be important because idk if there is a flag for the necklace damage field
-									[0x80725E53, 7], //Mantorok Rune examine (might work even with the wall collision)
-									[0x80725E2A, 1], //
-									[0x80725E2A, 2], //
-									[0x80725E28, 6], //I think these control the 3 mantorok barriers, no idea if there's a collision flag for the Trapper wall tho
+												//Lindsey:
+											//	[0x80725E52, 7], //Unlocks Aretak barrier (bit [7] might be important too)
+											//	[0x80725E51, 0], //Unlocks Tier barrier (bit [4] might be important too)
+												//[0x80725E45, 0], //
+												//[0x80725E46, 7], //these control the silver statue examine, I assume if you activate the necklace one then you'll only need the silver bracelet to open the gate. This might be important because idk if there is a flag for the necklace damage field
+												[0x80725E53, 7], //Mantorok Rune examine (might work even with the wall collision)
+												[0x80725E2A, 1], //
+												[0x80725E2A, 2], //
+												[0x80725E28, 6], //I think these control the 3 mantorok barriers, no idea if there's a collision flag for the Trapper wall tho
 
-									//Paul:
-									[0x80725E41, 2], //"Heresy Revealed" seen, it activates agustine opening the door cutscene
-									//[0x80725E46 , 5], //Unlocks binding hall door
+												//Paul:
+												[0x80725E41, 2], //"Heresy Revealed" seen, it activates agustine opening the door cutscene
+												//[0x80725E46 , 5], //Unlocks binding hall door
 
-									//Roberto:
-									//[0x80725E2C, 6], //smasher ladder b-prompt (to avoid summon zombie)
-									//[0x80725E8E, 2], //removes invisible wall in order to get the key
+												//Roberto:
+												//[0x80725E2C, 6], //smasher ladder b-prompt (to avoid summon zombie)
+												//[0x80725E8E, 2], //removes invisible wall in order to get the key
 
-									//Peter
-									[0x80725E50, 1], //Unlocks Coal room, despite the dead body still being there (to avoid Summon trapper)
-									[0x80725E6F, 4], //Secret door revealed
-									[0x80725E2C, 7], //is related to defeating Black Guardian. No idea what to do about BG, I don't think there's a flag for the stained glass collision, and that would still softlock in chattur'gha because of the stronger force field
-									//We could either restrict Peter with logic to always be after having magick attack, or just set the BG to be dead since the start of the chapter (I think it's ID is 145 at the start)
-									//Edward:
-									[0x80725E4C, 4], //Unlocks basement door. I think this doesn't break anything, you still need to defeat all Vampire phases in order to enter Ehn'gha
+												//Peter
+												[0x80725E50, 1], //Unlocks Coal room, despite the dead body still being there (to avoid Summon trapper)
+												[0x80725E6F, 4], //Secret door revealed
+												[0x80725E2C, 7], //is related to defeating Black Guardian. No idea what to do about BG, I don't think there's a flag for the stained glass collision, and that would still softlock in chattur'gha because of the stronger force field
+												//We could either restrict Peter with logic to always be after having magick attack, or just set the BG to be dead since the start of the chapter (I think it's ID is 145 at the start)
+												//Edward:
+												[0x80725E4C, 4], //Unlocks basement door. I think this doesn't break anything, you still need to defeat all Vampire phases in order to enter Ehn'gha
 
-									//Michael:
-									[0x80725E51, 1], //Reveals Forgotten Corridor Door
-									[0x80725E50, 2], //Activates the b-prompt of the ladder behind the obelisk, but the collision is still there so is inaccessible anyways.
-									[0x80725EA0, 5], //Skip bind intro
-									[0x80725E25, 0], //Skip bind destroy
-									//[0x80725E61, 7], //Activates escape sequence. This could be set to avoid logic for Summon Trapper (obelisk collision), with this flag set you'll enter the escape sequence when coming back from the worm bridge room
+												//Michael:
+												[0x80725E51, 1], //Reveals Forgotten Corridor Door
+												[0x80725E50, 2], //Activates the b-prompt of the ladder behind the obelisk, but the collision is still there so is inaccessible anyways.
+												[0x80725EA0, 5], //Skip bind intro
+												[0x80725E25, 0], //Skip bind destroy
+												//[0x80725E61, 7], //Activates escape sequence. This could be set to avoid logic for Summon Trapper (obelisk collision), with this flag set you'll enter the escape sequence when coming back from the worm bridge room
 
-									//Alex:
-									[0x80725E49, 3], //"beating Anthony", it unlocks the spell page for Alex
-									[0x80725E60, 6], //Unlocks 2nd floor room, avoids enchant
-									[0x80725E51, 2], //Unlocks the kitchen gladius lock, avoids enchant
-									[0x80725E68, 7], //Reveals the dresser
-									//[0x80725E7B, 3], //Changes the stained glass examine, but I think Paul page examine is still somehow tied to the dispel cutscene because the b-prompt is still not there and this is the only flag that changes during this
-									[0x80725E49, 7], //"beating Paul", allows to play the piano
-									[0x80725E48, 0], //"beating Roberto", allows to survey the picture on the tome room
-									[0x80725E4E, 7], //Unlocks basement door
-									[0x80725E68, 3], //Bathroom lights on
-									[0x80725E48, 1], //"beating Edward", allows grabbing the pickaxe
-									[0x80725EA1, 1], //Allows grabbing the stethoscope even with an active damage field
-									[0x80725E8E, 6], //Gives Enchanted Gladius on the Parcel
-									]);
+												//Alex:
+												[0x80725E49, 3], //"beating Anthony", it unlocks the spell page for Alex
+												[0x80725E60, 6], //Unlocks 2nd floor room, avoids enchant
+												[0x80725E51, 2], //Unlocks the kitchen gladius lock, avoids enchant
+												[0x80725E68, 7], //Reveals the dresser
+												//[0x80725E7B, 3], //Changes the stained glass examine, but I think Paul page examine is still somehow tied to the dispel cutscene because the b-prompt is still not there and this is the only flag that changes during this
+												[0x80725E49, 7], //"beating Paul", allows to play the piano
+												[0x80725E48, 0], //"beating Roberto", allows to survey the picture on the tome room
+												[0x80725E4E, 7], //Unlocks basement door
+												[0x80725E68, 3], //Bathroom lights on
+												[0x80725E48, 1], //"beating Edward", allows grabbing the pickaxe
+												[0x80725EA1, 1], //Allows grabbing the stethoscope even with an active damage field
+												[0x80725E8E, 6], //Gives Enchanted Gladius on the Parcel
+												]);});
 }
 
