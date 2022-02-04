@@ -488,6 +488,13 @@ function randomizeRunes(iso, log){
 	modifyScript(iso, 2022, (s)=>{
 		s.addJmpPatch(6, 10, code);
 	});
+	
+	modifyScript(iso, 402, (s)=>{
+		s.addJmpPatch(6, 10, code);
+	});
+	modifyScript(iso, 451, (s)=>{
+		s.addJmpPatch(6, 10, code);
+	});
 }
 
 function fixRuneSpireCrashes(iso, log){

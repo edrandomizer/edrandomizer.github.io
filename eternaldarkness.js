@@ -326,7 +326,7 @@ class LUA{
 		}
 		if(opcode[1]=="AB"){
 			var a=op>>>15;
-			var b=(op>>>6)&&0x1FF;
+			var b=(op>>>6)&0x1FF;
 			return opcode[0]+" "+a+" "+b;
 		}
 		if(opcode[1]=="K"){
