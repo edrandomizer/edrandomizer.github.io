@@ -9,6 +9,23 @@
 
 	<style type="text/css">
 
+		.hidden{
+			display:none;
+		}
+
+		.log_header{
+			display: inline-block;
+			border: 1px solid black;
+			margin-top:5px;
+			margin-right: 5px;
+			margin-bottom: 5px;
+			padding:5px;
+		}
+
+		.selected{
+			font-weight: bold;
+		}
+
 	    input {
 	        margin-top: 10px;
 	    }
@@ -26,6 +43,8 @@
 		<input type="checkbox" id="rune_control" checked="checked" />Randomize rune/codex/scroll locations<br />
 		<input type="checkbox" id="gate_control" checked="checked" />Remove spell gates<br />
 		<input type="input" id="seed" placeholder="Seed (leave blank for random)"></br>
+    </div>
+    <div id="log">
     </div>
 
     <script type="text/javascript">
@@ -63,6 +82,8 @@
 				seed=parseInt(document.getElementById("seed").value, 16);
 			}
 
+			const randomLog=new Log(seed);
+
 			Math.random=mulberry32(seed);
 
 			let reader = new FileReader();
@@ -81,11 +102,13 @@
 						displayMessage("Patching");
 						window.setTimeout(function(){
 							if(document.getElementById("text_control").checked){
+								randomLog.addLine("Randomizing room text", "General");
 								compressionBypassNeeded=true;
-								roomTextShuffle(niso);
+								roomTextShuffle(niso, randomLog);
 							}
 							if(document.getElementById("enemy_control").checked){
-								randomizeEnemies(niso, [
+								randomLog.addLine("Randomizing enemies", "General");
+								randomizeEnemies(niso, randomLog, [//TODO move this data structure
 								null, //alex
 								null, //pious
 								[null, null, null, [0, 1]], //Two locked room zombies in ellia
@@ -100,10 +123,12 @@
 								]);
 							}
 							if(document.getElementById("rune_control").checked){
-								randomizeRunes(niso);
+								randomLog.addLine("Randomizing runes", "General");
+								randomizeRunes(niso, randomLog);
 							}
 							if(document.getElementById("gate_control").checked){
-								removeSpellGates(niso);
+								randomLog.addLine("Removing spell gates", "General");
+								removeSpellGates(niso, randomLog);
 							}
 
 							const completeDownload=()=>{
@@ -112,10 +137,12 @@
 									var buf=niso.toBuffer();
 									displayMessage("Preparing download");
 									download(buf,  "ED.random."+(seed.toString(16))+".iso");
+									randomLog.writeToPage();
 								}, 1);
 							};
 
 							if(compressionBypassNeeded){
+								randomLog.addLine("Bypassing compression", "General");
 								prepare(niso);
 								bypassCompression(niso, function(){
 									completeDownload();

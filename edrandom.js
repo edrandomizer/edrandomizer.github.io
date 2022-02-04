@@ -1,5 +1,100 @@
 
 
+class Log {
+	constructor(seed){
+		this.log=[];
+		this.seed=seed;
+		this.addLine("Seed: "+seed.toString(16), "General");
+	}
+
+	addLine(line, section){
+		if(!this.log[section]){
+			this.log[section]=[];
+		}
+		this.log[section].push(line);
+	}
+
+	toBuffer(){
+		var text=this.asText();
+		var buf=new ArrayBuffer(text.length);
+		var data=new Uint8Array(buf);
+
+		for(var i=0; i<text.length; i++){
+			data[i]=text.charCodeAt(i);
+		}
+		return buf;
+	}
+
+	asText(){
+		var ret="";
+		for(var section in this.log){
+			ret+=section+":\n\n";
+			for(var line of this.log[section]){
+				ret+=line+"\n";
+			}
+			ret+="\n";
+		}
+		return ret;
+	}
+
+	asDOM(){
+		var ret=document.createElement("div");
+		for(var section in this.log){
+			var header=document.createElement("div");
+			header.innerText=section;
+			header.classList.add("log_header");
+			if(section==="General"){
+				header.classList.add("selected");
+			}
+
+			header.id=section+"_header";
+			header.addEventListener('click', (function (sec) { return (function(){
+				for(var ele of document.querySelectorAll(".log_section")){
+					ele.classList.add("hidden");
+				}
+				for(var ele of document.querySelectorAll(".log_header")){
+					ele.classList.remove("selected");
+				}
+				document.getElementById("section_"+sec).classList.remove("hidden");
+				document.getElementById(sec+"_header").classList.add("selected");
+			}); })(section));
+			ret.appendChild(header);
+		}
+		var logDownload=document.createElement("div");
+		logDownload.innerText="Download log";
+		logDownload.className="log_header";
+		logDownload.id="log_download";
+		logDownload.addEventListener('click', (function (log) { return (function(){
+			download(log, "edlog."+log.seed.toString(16)+".txt");
+		});})(this));
+		ret.appendChild(logDownload);
+
+		for(var section in this.log){
+			var dom=document.createElement("div");
+
+			dom.classList.add("log_section");
+			if(section!=="General"){
+				dom.classList.add("hidden");
+			}
+			dom.id="section_"+section;
+
+			var inner="";
+			for(var line of this.log[section]){
+				inner+=line+"<br />";
+			}
+			dom.innerHTML=inner;
+			ret.appendChild(dom);
+		}
+		return ret;
+	}
+
+	writeToPage(){
+		var logDom=document.getElementById("log");
+		logDom.innerHTML="";
+		logDom.appendChild(this.asDOM());
+	}
+}
+
 function shuffle(arr) {
 	for (let i = arr.length - 1; i > 0; i--) {
 		const j = Math.floor(Math.random() * (i + 1));
@@ -7,9 +102,11 @@ function shuffle(arr) {
 	}
 }
 
-function randomizeEnemies(iso, noTrapperList=[], skipList=[]){
+function randomizeEnemies(iso, log, noTrapperList=[], skipList=[]){
 
 	preventEnemyRandomizationSoftlocks(iso);
+
+	log.addLine("Entries marked with * are variable aligment, the alignment given is for a Chattur'gha fate", "Enemies");
 
 	var pious=new NPC(iso.fst.getFile("Npcs1.npc"));
 	var lindsey=new NPC(iso.fst.getFile("Npcs6.npc"));
@@ -24,23 +121,23 @@ function randomizeEnemies(iso, noTrapperList=[], skipList=[]){
 	};
 
 	var templates=[
-		buildTemplateFromStatic(pious.entries[0][0]),//m zombie,
-		buildTemplateFromStatic(lindsey.entries[0][0xe]), //x zombie
-		buildTemplateFromStatic(lindsey.entries[0][0x13]),//u zombie
-		buildTemplateFromStatic(lindsey.entries[0][9]),//c zombie
-		buildTemplateFromDynamic(karim.entries[3][0], 0),//x horror
-		buildTemplateFromDynamic(karim.entries[3][0], 2),//u horror
-		buildTemplateFromDynamic(karim.entries[3][0], 1),//c horror
-		buildTemplateFromDynamic(lindsey.entries[3][15], 2),//x trapper
-		buildTemplateFromDynamic(lindsey.entries[3][15], 1),//u trapper
-		buildTemplateFromDynamic(lindsey.entries[3][15], 0),//c trapper
+		[buildTemplateFromStatic(pious.entries[0][0]), "Mantarok Zombie"],
+		[buildTemplateFromStatic(lindsey.entries[0][0xe]), "Xel'lotath Zombie"],
+		[buildTemplateFromStatic(lindsey.entries[0][0x13]), "Ulyaoth Zombie"],
+		[buildTemplateFromStatic(lindsey.entries[0][9]), "Chattur'gha Zombie"],
+		[buildTemplateFromDynamic(karim.entries[3][0], 0), "Xel'lotath Horror"],
+		[buildTemplateFromDynamic(karim.entries[3][0], 2), "Ulyaoth Horror"],
+		[buildTemplateFromDynamic(karim.entries[3][0], 1), "Chattur'gha Horror"],
+		[buildTemplateFromDynamic(lindsey.entries[3][15], 2), "Xel'lotath Trapper"],
+		[buildTemplateFromDynamic(lindsey.entries[3][15], 1), "Ulyaoth Trapper"],
+		[buildTemplateFromDynamic(lindsey.entries[3][15], 0), "Chattur'gha Trapper"],
 	];
 
 	const runeSafe=7;
 
 	var candidates=[];
 	for(var temp of templates){
-		candidates.push(new DataView(temp[0].buffer).getUint16(0, false));
+		candidates.push(new DataView(temp[0][0].buffer).getUint16(0, false));
 	}
 
 	candidates=candidates.slice(0, 7);//Workaround for trapper based crashes
@@ -59,9 +156,11 @@ function randomizeEnemies(iso, noTrapperList=[], skipList=[]){
 
 		var j=0;
 		while(j<c){
-			var type=new DataView(npcs.entries[0][j]).getUint16(0x18, false);
+			var d=new DataView(npcs.entries[0][j]);
+			var type=d.getUint16(0x18, false);
+			var cIndex;
+			if((cIndex=candidates.indexOf(type))!==-1 && (!skipList[i] || !skipList[i][0] || skipList[i][0].indexOf(j)===-1) ){
 
-			if(candidates.indexOf(type)!==-1 && (!skipList[i] || !skipList[i][0] || skipList[i][0].indexOf(j)===-1) ){
 				var b=new Uint8Array(npcs.entries[0][j]);
 				var maxIndex=templates.length;
 
@@ -71,8 +170,11 @@ function randomizeEnemies(iso, noTrapperList=[], skipList=[]){
 					maxIndex=runeSafe;
 				}
 				var rand=Math.floor(Math.random()*maxIndex);
-				b.set(templates[rand][0], 0x18);
-				b.set(templates[rand][1], 0x20);
+				b.set(templates[rand][0][0], 0x18);
+				b.set(templates[rand][0][1], 0x20);
+
+				var room=d.getUint16(0x6, false);
+				log.addLine("Level: "+i+" Room:"+room+" "+templates[cIndex][1]+" -> "+templates[rand][1], "Enemies");
 			}
 			j++;
 		}
@@ -81,9 +183,10 @@ function randomizeEnemies(iso, noTrapperList=[], skipList=[]){
 
 		j=0;
 		while(j<c){
-
-			var type=new DataView(npcs.entries[3][j]).getUint16(0x18, false);
-			if(candidates.indexOf(type)!==-1 && (!skipList[i] || !skipList[i][3] || skipList[i][3].indexOf(j)===-1) ){
+			var d=new DataView(npcs.entries[3][j]);
+			var type=d.getUint16(0x18, false);
+			var cIndex;
+			if((cIndex=candidates.indexOf(type))!==-1 && (!skipList[i] || !skipList[i][3] || skipList[i][3].indexOf(j)===-1) ){
 				var b=new Uint8Array(npcs.entries[3][j]);
 				var maxIndex=templates.length;
 
@@ -94,14 +197,17 @@ function randomizeEnemies(iso, noTrapperList=[], skipList=[]){
 				}
 
 				var rand=Math.floor(Math.random()*maxIndex);
-				b.set(templates[rand][0], 0x18);
-				b.set(templates[rand][1], 0x1c);
+				b.set(templates[rand][0][0], 0x18);
+				b.set(templates[rand][0][1], 0x1c);
 				rand=Math.floor(Math.random()*maxIndex);
-				b.set(templates[rand][0], 0x1e);
-				b.set(templates[rand][1], 0x22);
+				b.set(templates[rand][0][0], 0x1e);
+				b.set(templates[rand][0][1], 0x22);
 				rand=Math.floor(Math.random()*maxIndex);
-				b.set(templates[rand][0], 0x24);
-				b.set(templates[rand][1], 0x28);
+				b.set(templates[rand][0][0], 0x24);
+				b.set(templates[rand][0][1], 0x28);
+
+				var room=d.getUint16(0x6, false);
+				log.addLine("Level: "+i+" Room:"+room+" "+templates[cIndex][1]+"* -> "+templates[rand][1], "Enemies");
 			}
 
 			j++;
@@ -117,7 +223,7 @@ function preventEnemyRandomizationSoftlocks(iso){
 	modifyScript(iso, 1920, (s)=>{s.addFlagSet([[0x80725E70, 2]]);});
 }
 
-function roomTextShuffle(iso){
+function roomTextShuffle(iso, log){
 
 	var gpks=[];
 	var newGpks=[];
@@ -184,46 +290,93 @@ function roomTextShuffle(iso){
 				}
 				newGpks[de].entries[destFi][destSi]=data;
 			}
-
+			log.addLine(sourceFi+":"+sourceSi+" -> "+destFi+":"+destSi, "Text");
 		}
 	}
+
 	for(var file in cmps){
 		cmps[file].replace(newGpks[file].toBuffer());
 	}
 
 }
 
-function randomizeRunes(iso){
+function randomizeRunes(iso, log){
 
-	var runeScripts=[[1367, 0, 0], //128
-					 [1363, 24, 5], //8
-					 [1360, 4, 0], //1
-					 [1361, 4, 0], //2
-					 [1362, 4, 0], //4
-					 [1366, 0, 0], //64
-					 [1372, 0, 0], //4096
-					 [1371, 0, 0], //2048
-					 [1364, 0, 0], //16
-					 [1369, 0, 0], //512
-					 [1373, 0, 0], //8192
-					 [1365, 0, 0], //32
-					 [1370, 0, 0], //1024
-					 [1368, 0, 0],//256
-					 [2129, 0xe3, 5],//65536
-					 [1375, 0, 0], //131072
-					 [[1376, 0, 0], [2692, 0xb8, 1]], //262144, I think the first is unsed but it's here for completeness
+	var runeScripts=[[1367, 0, 0, 7], //128
+					 [1363, 24, 5, 3], //8
+					 [1360, 4, 0, 0], //1
+					 [1361, 4, 0, 1], //2
+					 [1362, 4, 0, 2], //4
+					 [1366, 0, 0, 6], //64
+					 [1372, 0, 0, 12], //4096
+					 [1371, 0, 0, 11], //2048
+					 [1364, 0, 0, 4], //16
+					 [1369, 0, 0, 9], //512
+					 [1373, 0, 0, 13], //8192
+					 [1365, 0, 0, 5], //32
+					 [1370, 0, 0, 10], //1024
+					 [1368, 0, 0, 8],//256
+					 [2129, 0xe3, 5, 16],//65536
+					 [1375, 0, 0, 17], //131072
+					 [[1376, 0, 0, 18], [2692, 0xb8, 1, 18]], //262144, I think the first is unsed but it's here for completeness
 					 ];
 
+	var runeNames=[
+		"Chattur'gha",
+		"Ulyaoth",
+		"Xel'lotath",
+		"Mantarok",
+		"Bankorok",
+		"Tier",
+		"Narokath",
+		"Nethlek",
+		"Antorbok",
+		"Magormor",
+		"Redgormor",
+		"Aretak",
+		"Santak",
+		"Pargon",
+		null,
+		null,
+		"3 circle",
+		"5 circle",
+		"7 circle"
+	];
 
+	var scrollNames=[
+		"Enchant Item",
+		"Recover",
+		"Damage Field",
+		"Bind",
+		"Shield",
+		"Dispel Magic",
+		null,
+		"Magickal Attack",
+		"Summon Trapper",
+		"Summon Horror",
+		"Summon Zombie",
+		"Reveal Invisible",
+		"Magick Pool",
+	];
+
+	const getRollName=(roll)=>{
+		if(roll[0]==0){
+			return runeNames[roll[1]];
+		}else if(roll[0]==1){
+			return scrollNames[roll[1]-32];
+		}else if(roll[0]==2){
+			return runeNames[255-roll[1]]+" Codex";
+		}
+	}
 
 	var rand=[];
 
 	//runes
 	for(var i=0; i<14; i++){
-		rand.push([0, 1<<i]);
+		rand.push([0, i]);
 	}
-	for(var i=16; i<20; i++){
-		rand.push([0, 1<<i]);
+	for(var i=16; i<19; i++){
+		rand.push([0, i]);
 	}
 
 	var scrollModels=[];
@@ -259,7 +412,7 @@ function randomizeRunes(iso){
 
 			if(roll[0]===0){
 				modifyScript(iso, script[0], (s)=> {
-					s.instructions[script[1]+1]=s.buildInstruction("PUSHINT", roll[1]);
+					s.instructions[script[1]+1]=s.buildInstruction("PUSHINT", 1<<roll[1]);
 				});
 			}else if(roll[0]===1){
 				modifyScript(iso, script[0], (s)=>{
@@ -279,8 +432,8 @@ function randomizeRunes(iso){
 				throw "Bad reward type";
 			}
 		}
+		log.addLine(getRollName([0, scripts[0][3]])+" -> "+getRollName(roll), "Runes");
 	}
-	var code=[];
 
 	const addRollCode=(code, model, roll)=>{
 		code.push(["GETLOCAL", 1]);
@@ -289,7 +442,7 @@ function randomizeRunes(iso){
 
 		if(roll[0]===0){
 			code.push(["GETGLOBAL", "ed10"]);
-			code.push(["PUSHINT", roll[1]]);
+			code.push(["PUSHINT", 1<<roll[1]]);
 			code.push(["CALL", 2, 0]);
 			code.push("REJOIN");
 		}else if(roll[0]===1){
@@ -308,8 +461,14 @@ function randomizeRunes(iso){
 		}
 	};
 
+	var code=[];
+	var mIndex=0;
+
 	for(var model of codexModels){
-		addRollCode(code, model, rand[i++]);
+		var roll=rand[i++];
+		addRollCode(code, model, roll);
+		log.addLine(getRollName([2, 255-mIndex])+" -> "+getRollName(roll), "Runes");
+		mIndex++;
 	}
 
 	modifyScript(iso, 1985, (s)=>{
@@ -317,9 +476,13 @@ function randomizeRunes(iso){
 	});
 
 	code=[];
+	var sIndex=0;
 
 	for(var model of scrollModels){
-		addRollCode(code, model, rand[i++]);
+		var roll=rand[i++];
+		addRollCode(code, model, roll);
+		log.addLine(getRollName([1, (sIndex>=6? sIndex+1 : sIndex)+0x20])+" -> "+getRollName(roll), "Runes");
+		sIndex++;
 	}
 
 	modifyScript(iso, 2022, (s)=>{
@@ -327,7 +490,7 @@ function randomizeRunes(iso){
 	});
 }
 
-function fixRuneSpireCrashes(iso){
+function fixRuneSpireCrashes(iso, log){
 
 	//Skip the puzzle controls for en'gha runes
 	var edRunes=findScript(iso, 2082);
@@ -396,7 +559,7 @@ function fixRuneSpireCrashes(iso){
 }
 
 
-function removeSpellGates(iso){
+function removeSpellGates(iso, log){
 
 	//Unset a flag right before lindsey's damage field creation, prevents the field from being created
 	modifyScript(iso, 1621, (s)=> {s.prepend([["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E63, 5)], ["PUSHINT", 0], ["CALL", 0, 0]]);});
@@ -404,6 +567,10 @@ function removeSpellGates(iso){
 	modifyScript(iso, 788, (s)=>{s.prepend([["GETGLOBAL", "fn73"], ["PUSHINT", 1098], ["CALL", 0, 0]]);});//run the window dispel script at the top of the paul page examine script
 
 	var randomAlignment=Math.floor(Math.random()*3)+1;
+
+	var alignmentNames=[null, "Chattur'gha", "Ulyaoth", "Xel'lotath"];
+
+	log.addLine("Forced Alignment: "+alignmentNames[randomAlignment], "General");
 
 	modifyScript(iso, 1920, (s)=> {s.prepend([["GETGLOBAL", "ed15"], ["PUSHINT", 1], ["PUSHINT", randomAlignment], ["CALL", 0, 0]]);});//Randomly assign an alignment at the beginning of the game
 
