@@ -1,17 +1,27 @@
 
-
 class Log {
 	constructor(seed){
 		this.log=[];
+		this.types=[];
 		this.seed=seed;
+		this.addType("simple", (e)=>{return e;});
 		this.addLine("Seed: "+seed.toString(16), "General");
 	}
 
-	addLine(line, section){
+	addType(type, format){
+		this.types[type]=format;
+	}
+
+	addLine(data, section, type="simple"){
 		if(!this.log[section]){
 			this.log[section]=[];
 		}
-		this.log[section].push(line);
+
+		if(!this.types[type]){
+			throw "Unrecognised log type "+type;
+		}
+
+		this.log[section].push([type, data]);
 	}
 
 	toBuffer(){
@@ -25,12 +35,18 @@ class Log {
 		return buf;
 	}
 
+	formatLine(line){
+		var format=this.types[line[0]];
+
+		return format(line[1]);
+	}
+
 	asText(){
 		var ret="";
 		for(var section in this.log){
 			ret+=section+":\n\n";
 			for(var line of this.log[section]){
-				ret+=line+"\n";
+				ret+=this.formatLine(line)+"\n";
 			}
 			ret+="\n";
 		}
@@ -80,7 +96,7 @@ class Log {
 
 			var inner="";
 			for(var line of this.log[section]){
-				inner+=line+"<br />";
+				inner+=this.formatLine(line)+"<br />";
 			}
 			dom.innerHTML=inner;
 			ret.appendChild(dom);
@@ -108,6 +124,10 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[]){
 
 	log.addLine("Entries marked with * are variable aligment, the alignment given is for a Chattur'gha fate", "Enemies");
 
+	log.addType("enemy_change", (d)=> {
+		return `Level: ${d.level} Room: ${d.room} ${d.originalName} ${d.fromStatic ? "" : "*"} -> ${d.newName}`;
+	});
+
 	var pious=new NPC(iso.fst.getFile("Npcs1.npc"));
 	var lindsey=new NPC(iso.fst.getFile("Npcs6.npc"));
 	var karim=new NPC(iso.fst.getFile("Npcs4.npc"));
@@ -123,7 +143,7 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[]){
 	var templates=[
 		[buildTemplateFromStatic(pious.entries[0][0]), "Mantarok Zombie"],
 		[buildTemplateFromStatic(lindsey.entries[0][0xe]), "Xel'lotath Zombie"],
-		[buildTemplateFromStatic(lindsey.entries[0][0x13]), "Ulyaoth Zombie"],
+		[buildTemplateFromStatic(lindsey.entries[0][0x14]), "Ulyaoth Zombie"],
 		[buildTemplateFromStatic(lindsey.entries[0][9]), "Chattur'gha Zombie"],
 		[buildTemplateFromDynamic(karim.entries[3][0], 0), "Xel'lotath Horror"],
 		[buildTemplateFromDynamic(karim.entries[3][0], 2), "Ulyaoth Horror"],
@@ -174,7 +194,15 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[]){
 				b.set(templates[rand][0][1], 0x20);
 
 				var room=d.getUint16(0x6, false);
-				log.addLine("Level: "+i+" Room:"+room+" "+templates[cIndex][1]+" -> "+templates[rand][1], "Enemies");
+				log.addLine(	{"level":i,
+								 "room": room,
+								 "fromStatic":true,
+								 "originalName":templates[cIndex][1],
+								 "originalTemplateIndex": cIndex,
+								 "newName": templates[rand][1],
+								 "newTemplateIndex":rand},
+							"Enemies",
+							"enemy_change");
 			}
 			j++;
 		}
@@ -207,7 +235,15 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[]){
 				b.set(templates[rand][0][1], 0x28);
 
 				var room=d.getUint16(0x6, false);
-				log.addLine("Level: "+i+" Room:"+room+" "+templates[cIndex][1]+"* -> "+templates[rand][1], "Enemies");
+				log.addLine(	{"level":i,
+								 "room": room,
+								 "fromStatic":false,
+								 "originalName":templates[cIndex][1],
+								 "originalTemplateIndex": cIndex,
+								 "newName": templates[rand][1],
+								 "newTemplateIndex":rand},
+							"Enemies",
+							"enemy_change");
 			}
 
 			j++;
@@ -224,6 +260,10 @@ function preventEnemyRandomizationSoftlocks(iso){
 }
 
 function roomTextShuffle(iso, log){
+
+	log.addType("text_change", (d)=> {
+		return `${d.originalFi}:${d.originalSi} -> ${d.newFi} ${d.newSi}`;
+	});
 
 	var gpks=[];
 	var newGpks=[];
@@ -290,7 +330,7 @@ function roomTextShuffle(iso, log){
 				}
 				newGpks[de].entries[destFi][destSi]=data;
 			}
-			log.addLine(sourceFi+":"+sourceSi+" -> "+destFi+":"+destSi, "Text");
+			log.addLine({"originalFi": sourceFi, "originalSi": sourceSi, "newFi": destFi, "newSi": destSi}, "Text", "text_change");
 		}
 	}
 
@@ -301,6 +341,8 @@ function roomTextShuffle(iso, log){
 }
 
 function randomizeRunes(iso, log){
+
+	log.addType("magic_pickup_change", (d)=>{ return `${d.originalName} -> ${d.newName}`;});
 
 	var runeScripts=[[1367, 0, 0, 7], //128
 					 [1363, 24, 5, 3], //8
@@ -338,13 +380,13 @@ function randomizeRunes(iso, log){
 		"Pargon",
 		null,
 		null,
-		"3 circle",
-		"5 circle",
-		"7 circle"
+		"3 Circle",
+		"5 Circle",
+		"7 Circle"
 	];
 
 	var scrollNames=[
-		"Enchant Item",
+		"Enchant Item",//0x20
 		"Recover",
 		"Damage Field",
 		"Bind",
@@ -359,13 +401,30 @@ function randomizeRunes(iso, log){
 		"Magick Pool",
 	];
 
+	var codexNames=[
+		"Antorbok Codex",  //0xf2
+		"Aretak Codex",
+		"Bankorok Codex",
+		"Chattur'gha Codex",
+		"Magormor Codex",
+		"Mantarok Codex",
+		"Narokath Codex",
+		"Nethlek Codex",
+		"Pargon Codex",
+		"Redgormor Codex",
+		"Santak Codex",
+		"Tier Codex",
+		"Ulyaoth Codex",
+		"Xel'lotath Codex"
+	];
+
 	const getRollName=(roll)=>{
 		if(roll[0]==0){
 			return runeNames[roll[1]];
 		}else if(roll[0]==1){
 			return scrollNames[roll[1]-32];
 		}else if(roll[0]==2){
-			return runeNames[255-roll[1]]+" Codex";
+			return codexNames[roll[1]-242];
 		}
 	}
 
@@ -432,7 +491,7 @@ function randomizeRunes(iso, log){
 				throw "Bad reward type";
 			}
 		}
-		log.addLine(getRollName([0, scripts[0][3]])+" -> "+getRollName(roll), "Runes");
+		log.addLine({"originalName": getRollName([0, scripts[0][3]]), "newName": getRollName(roll), "original": [0, scripts[0][3]], "new":roll}, "Runes", "magic_pickup_change");
 	}
 
 	const addRollCode=(code, model, roll)=>{
@@ -467,7 +526,8 @@ function randomizeRunes(iso, log){
 	for(var model of codexModels){
 		var roll=rand[i++];
 		addRollCode(code, model, roll);
-		log.addLine(getRollName([2, 255-mIndex])+" -> "+getRollName(roll), "Runes");
+
+		log.addLine({"originalName": getRollName([2, 255-mIndex]), "newName": getRollName(roll), "original": [2, 255-mIndex], "new":roll}, "Runes", "magic_pickup_change");
 		mIndex++;
 	}
 
@@ -481,14 +541,15 @@ function randomizeRunes(iso, log){
 	for(var model of scrollModels){
 		var roll=rand[i++];
 		addRollCode(code, model, roll);
-		log.addLine(getRollName([1, (sIndex>=6? sIndex+1 : sIndex)+0x20])+" -> "+getRollName(roll), "Runes");
+		log.addLine({"originalName": getRollName([1, (sIndex>=6? sIndex+1 : sIndex)+0x20]), "newName": getRollName(roll), "original": [1, (sIndex>=6? sIndex+1 : sIndex)+0x20], "new":roll}, "Runes", "magic_pickup_change");
+
 		sIndex++;
 	}
 
 	modifyScript(iso, 2022, (s)=>{
 		s.addJmpPatch(6, 10, code);
 	});
-	
+
 	modifyScript(iso, 402, (s)=>{
 		s.addJmpPatch(6, 10, code);
 	});
@@ -565,11 +626,154 @@ function fixRuneSpireCrashes(iso, log){
 	replaceScript(iso, 2216, runeSolution);
 }
 
+function addPeterRuneGate(iso, log){
+	var threeCircle=false;
+	var otherCircle=false;
+	var pargon=false;
+	var alignment=false;
+	var antorbok=false;
+	var redgormor=false;
+	var found=false;//TODO put in a proper options check
+
+	for(var line of log.log["Runes"]){
+		if(line[0]!="magic_pickup_change"){
+			continue;
+		}
+		if(line[1].originalName==="7 Circle" || line[1].originalName==="Magickal Attack"){
+			found=true;
+
+			if(line[1].newName==="3 Circle"){
+				threeCircle=true;
+			}
+
+			if(line[1].newName==="5 Circle" || line[1].newName==="7 Circle"){
+				otherCircle=true;
+			}
+
+			if(line[1].newName==="Pargon"){
+				pargon=true;
+			}
+
+			if(line[1].newName==="Antorbok"){
+				antorbok=true;
+			}
+
+			if(line[1].newName==="Redgormor"){
+				redgormor=true;
+			}
+
+			if(line[1].newName==="Mantorok" || line[1].newName==="Chatthur'gha" || line[1].newName==="Ulyaoth" || line[1].newName==="Xel'lotath"){
+				alignment=true;
+			}
+		}
+	}
+	if(!found){
+		return;//Runes probably aren't being randomised, no need to do anything
+	}
+
+	var code=[];
+
+/*	if(!threeCircle){
+		if(otherCircle){
+			if(pargon){
+				//all good
+			}else{
+				//check for 3 circle or pargon
+				code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
+				code.push(["PUSHINT", (1 <<16) | (1 << 13)]);
+				code.push(["CALL", 0, 1]);
+				code.push(["JMPF", ":FAILURE"]);
+			}
+		}else{
+			if(pargon){
+				//check for any circle
+				code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
+				code.push(["PUSHINT", (1 <<16) | (1 << 17) | (1 << 18)]);
+				code.push(["CALL", 0, 1]);
+				code.push(["JMPF", ":FAILURE"]);
+			}else{
+				//check for 3 circle or other circle+pargon
+				code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
+				code.push(["PUSHINT", (1 << 16)]);
+				code.push(["CALL", 0, 1]);
+				code.push(["JMPT", 10]);
+				code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
+				code.push(["PUSHINT", (1 << 17) | (1 << 13)]);
+				code.push(["CALL", 0, 1]);
+				code.push(["PUSHINT", (1 << 17) | (1 << 13)]);
+				code.push(["JMPEQ", 5]);
+				code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
+				code.push(["PUSHINT", (1 << 18) | (1 << 13)]);
+				code.push(["CALL", 0, 1]);
+				code.push(["PUSHINT", (1 << 18) | (1 << 13)]);
+				code.push(["JMPNE", ":FAILURE"]);
+			}
+		}
+	}*/
+
+	if(!alignment){
+		code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
+		code.push(["PUSHINT", (1 <<0) | (1 <<1) | (1 <<2) | (1 <<3)]);
+		code.push(["CALL", 0, 1]);
+		code.push(["JMPF", ":FAILURE"]);
+	}
+
+	if(!antorbok){
+		//check for antorbok
+		code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
+		code.push(["PUSHINT", (1 <<8)]);
+		code.push(["CALL", 0, 1]);
+		code.push(["JMPF", ":FAILURE"]);
+	}
+
+	if(!redgormor){
+		//check for redgormor
+		code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
+		code.push(["PUSHINT", (1 <<10)]);
+		code.push(["CALL", 0, 1]);
+		code.push(["JMPF", ":FAILURE"]);
+	}
+
+	code.push(["GETGLOBAL", "fn29"]);
+	code.push(["PUSHINT", bitAddressToFlag(0x80725E48, 0)]);
+	code.push(["PUSHINT", 1]);
+	code.push(["CALL", 0, 0]);
+
+	var failure=code.length;
+
+	for(var index in code){
+		if(code[index][1]===":FAILURE"){
+			code[index][1]=failure-index-1;
+		}
+	}
+
+	modifyScript(iso, 1892, (s)=>{
+		s.prepend(code);
+	});
+
+	//Don't give the flag when you complete roberto
+	modifyScript(iso, 1578, (s)=>{
+		s.instructions[0x33]=s.buildInstruction("POP", 3);
+	});
+}
 
 function removeSpellGates(iso, log){
 
+	addPeterRuneGate(iso, log);
+
 	//Unset a flag right before lindsey's damage field creation, prevents the field from being created
 	modifyScript(iso, 1621, (s)=> {s.prepend([["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E63, 5)], ["PUSHINT", 0], ["CALL", 0, 0]]);});
+
+	//Same for mantorok barrier
+	modifyScript(iso, 2029, (s)=> {s.prepend([["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E5F, 2)], ["PUSHINT", 0], ["CALL", 0, 0]]);});
+
+	//Open lindsey's door when examining the cracked wall
+	var mantorokDoor=findScript(iso, 1635);
+	replaceScript(iso, 2541, mantorokDoor);
+	//remove lindsey mantorok door
+	//var lindseyNpcs=new NPC(iso.getFile("Npcs5.npc"));
+	//lindseyNpcs.entries[1].splice(65, 1);//Delete mantorok npc
+	//iso.getFile("Npcs5.npc").replace(lindseyNpcs);
 
 	modifyScript(iso, 788, (s)=>{s.prepend([["GETGLOBAL", "fn73"], ["PUSHINT", 1098], ["CALL", 0, 0]]);});//run the window dispel script at the top of the paul page examine script
 
@@ -649,7 +853,7 @@ function removeSpellGates(iso, log){
 												//Peter
 												[0x80725E50, 1], //Unlocks Coal room, despite the dead body still being there (to avoid Summon trapper)
 												[0x80725E6F, 4], //Secret door revealed
-												[0x80725E2C, 7], //is related to defeating Black Guardian. No idea what to do about BG, I don't think there's a flag for the stained glass collision, and that would still softlock in chattur'gha because of the stronger force field
+												//[0x80725E2C, 7], //is related to defeating Black Guardian. No idea what to do about BG, I don't think there's a flag for the stained glass collision, and that would still softlock in chattur'gha because of the stronger force field
 												//We could either restrict Peter with logic to always be after having magick attack, or just set the BG to be dead since the start of the chapter (I think it's ID is 145 at the start)
 												//Edward:
 												[0x80725E4C, 4], //Unlocks basement door. I think this doesn't break anything, you still need to defeat all Vampire phases in order to enter Ehn'gha
@@ -668,7 +872,7 @@ function removeSpellGates(iso, log){
 												[0x80725E68, 7], //Reveals the dresser
 												//[0x80725E7B, 3], //Changes the stained glass examine, but I think Paul page examine is still somehow tied to the dispel cutscene because the b-prompt is still not there and this is the only flag that changes during this
 												[0x80725E49, 7], //"beating Paul", allows to play the piano
-												[0x80725E48, 0], //"beating Roberto", allows to survey the picture on the tome room
+												//[0x80725E48, 0], //"beating Roberto", allows to survey the picture on the tome room
 												[0x80725E4E, 7], //Unlocks basement door
 												[0x80725E68, 3], //Bathroom lights on
 												[0x80725E48, 1], //"beating Edward", allows grabbing the pickaxe

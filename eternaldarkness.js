@@ -129,11 +129,11 @@ class GPK{
 				size+=8+ent.length*8;
 				for(var s of ent){
 					if(s){
-						size+=s.byteLength;
+						size+=asBuf(s).byteLength;
 					}
 				}
 			}else if(ent){
-				size+=ent.byteLength;
+				size+=asBuf(ent).byteLength;
 			}
 		}
 		return size;
