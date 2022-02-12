@@ -75,10 +75,12 @@ class NPC{
 }
 
 class GPK{
-	constructor(buffer){
+	constructor(buffer, aligned=false){
 
 		if(!buffer){
 			this.entries=[];
+			this.minCount=0;
+			this.alignment=1;
 			return;
 		}
 
@@ -91,7 +93,17 @@ class GPK{
 
 		var entryCount=raw.getUint32(0, false);
 
+		this.minCount=entryCount;
+
 		this.entries=[];
+
+		var alignment=1;
+
+		if(aligned){
+			alignment=0x100000;
+		}
+
+		var limit=0;
 
 		var i=0;
 		while(i<entryCount){
@@ -99,7 +111,11 @@ class GPK{
 			var size=raw.getUint32(12+i*8, false);
 
 			if(offset!=0 && size!=0){
+
 				if(raw.getUint32(offset+4, false)==0xfb90){
+					if(aligned){
+						throw "Aligned two layer GPKs are not supported";
+					}
 					var sCount=raw.getUint32(offset, false);
 					var j=0;
 					var strings=[];
@@ -109,21 +125,48 @@ class GPK{
 
 						if(sSize!=0 && sOffset!=0){
 							strings[j]=buffer.slice(offset+sOffset, offset+sOffset+sSize);
+							if(limit<offset+sOffset+size){
+								limit=offset+sOffset+size;
+							}
 						}
 
 						j++;
 					}
 					this.entries[i]=strings;
+					while(offset % alignment!=0){
+						alignment/=2;
+					}
 				}else{
 					this.entries[i]=buffer.slice(offset, offset+size);
+					if(limit<offset+size){
+						limit=offset+size;
+					}
+					while(offset % alignment!=0){
+						alignment/=2;
+					}
 				}
 			}
 			i++;
 		}
+
+		this.alignment=alignment;
+
+		if(limit!=buffer.byteLength){
+			console.log("Warning! GPK files data exceeds its bounds. Data may be missing.");
+		}
 	}
 
 	getSize(){
-		var size=8+8*this.entries.length;
+		var entryCount=this.entries.length;
+
+		if(entryCount<this.minCount){
+			entryCount=this.minCount;
+		}
+
+		var size=8+8*entryCount;
+
+		size=(size+this.alignment-1)&~(this.alignment-1);
+
 		for(var ent of this.entries){
 			if(Array.isArray(ent)){
 				size+=8+ent.length*8;
@@ -133,7 +176,9 @@ class GPK{
 					}
 				}
 			}else if(ent){
-				size+=asBuf(ent).byteLength;
+				var sizeIncrease=(asBuf(ent).byteLength+this.alignment-1)&~(this.alignment-1);
+
+				size+=sizeIncrease;
 			}
 		}
 		return size;
@@ -142,6 +187,10 @@ class GPK{
 	toBuffer(){
 
 		var entryCount=this.entries.length;
+
+		if(entryCount<this.minCount){
+			entryCount=this.minCount;
+		}
 
 		var out=new ArrayBuffer(this.getSize());
 		var d=new DataView(out);
@@ -185,6 +234,8 @@ class GPK{
 					j++;
 				}
 			}else{
+				curOff=(curOff+this.alignment-1)&~(this.alignment-1);
+
 				ent=asBuf(ent);
 				d.setUint32(8+i*8, curOff, false);
 				d.setUint32(12+i*8, ent.byteLength, false);
@@ -619,6 +670,11 @@ function stripFMV(iso){
 	}
 }
 
+function deleteUnused(iso){
+	iso.getFile("EKioskMenu.cmp").replace(new ArrayBuffer(0));
+	iso.getFile("EE3Menu.cmp").replace(new ArrayBuffer(0));
+}
+
 function bitAddressToFlag(address, bit){
 	const base=0x80725E24;
 
@@ -689,7 +745,7 @@ function replaceScript(iso, script, lua){
 
 
 function prepare(iso){
-	iso.dol.prepareInjectionSection(0x802fd8e0);
+	iso.dol.prepareInjectionSection(0x802fd178);
 }
 
 
@@ -702,6 +758,111 @@ function bypassCompression(iso, continuation){
 		}
 	});
 
+}
+
+function bigLevel(iso, models=null){
+	var common=new GPK(decompressSKASC(iso.getFile("NPCCom.gpk")), true);
+
+	var levels=[];
+
+	for(var i=0; i<14; i++){
+		if(i==12){
+			continue;
+		}
+		var lGpk=new GPK(decompressSKASC(iso.getFile("Level"+("00"+i).slice(-2)+".bin")), true);
+		levels.push([new GPK(lGpk.entries[0], true), lGpk, i ]);
+	}
+
+	if(models===null){
+		models=[];
+		for(var i=0; i<160; i++){
+			models.push(i);
+		}
+	}
+
+	for(var i of models){
+		for(var lvl of levels){
+			if(lvl[0].entries[i]){
+				if(!common.entries[i]){
+					common.entries[i]=lvl[0].entries[i];
+				}
+			//	lvl[0].entries[i]=null;
+			}
+		}
+	}
+
+	/*for(var lvl of levels){
+		lvl[1].entries[0]=lvl[0];
+		iso.getFile("Level"+("00"+lvl[2]).slice(-2)+".bin").replace(lvl[1]);
+	}*/
+
+	//Extend sizes
+	iso.dol.write2(0x801380ee, 0x100);
+	iso.dol.write2(0x80138cf6, 0x100);
+	iso.dol.write2(0x80138be2, 0x100);
+	iso.dol.write2(0x80138bf6, 0x100);
+	iso.dol.write2(0x80138c1a, 0x100);
+
+	iso.dol.write2(0x8015885e, 0x50);
+	iso.dol.write2(0x801f2fba, 0x50);
+	iso.dol.write2(0x801f3042, 0x50);
+
+	iso.dol.write2(0x80138e5a, 0x50);
+	iso.dol.write2(0x801398fa, 0x50);
+
+	iso.dol.write2(0x8015aa16, 0x50);
+	iso.dol.write2(0x8015a5fa, 0x50);
+
+	/*iso.dol.write2(0x800248de, 0xfa0);
+	iso.dol.write2(0x80024936, 0xfa0);
+
+	iso.dol.write2(0x800248fe, 0x2ee0);
+	iso.dol.write2(0x8002493a, 0x2ee0);*/
+
+	var newSize=common.getSize()+64;
+
+	iso.dol.write2(0x80042b9e, newSize&0xffff);
+	iso.dol.write2(0x80042b92, (newSize>>>16)&0xffff);
+	iso.dol.write2(0x80042b9c, 0x60a5);
+
+	iso.dol.write2(0x80042b6e, newSize&0xffff);
+	iso.dol.write2(0x80042b62, (newSize>>>16)&0xffff);
+	iso.dol.write2(0x80042b6c, 0x60c3);
+
+	iso.getFile("NPCCom.gpk").replace(common);
+}
+
+function copyNPC(iso, source, dest){
+	var sNpc=new NPC(iso.getFile("Npcs"+source[0]+".npc"));
+	var dNpc=new NPC(iso.getFile("Npcs"+dest[0]+".npc"));
+
+	var template;
+
+	if(source[1]==0){
+		template=buildTemplateFromStatic(sNpc.entries[0][source[2]]);
+	}else if(source[1]==3){
+		template=buildTemplateFromDynamic(sNpc.entries[3][source[2]], source[3]);
+	}else{
+		throw "Can only copy enemies";
+	}
+
+	if(dest[1]==0){
+		var dView=new Uint8Array(dNpc.entries[0][dest[2]]);
+		dView.set(template[0], 0x18);
+		dView.set(template[1], 0x20);
+	}else{
+		throw "Can only copy over statics atm";
+	}
+
+	iso.getFile("Npcs"+dest[0]+".npc").replace(dNpc);
+}
+
+function buildTemplateFromStatic(e){
+	return [new Uint8Array(e.slice(0x18, 0x18+0x4)), new Uint8Array(e.slice(0x20, 0x20+0x2))];
+}
+
+function buildTemplateFromDynamic(e, i){
+	return [new Uint8Array(e.slice(0x18+i*6, 0x18+i*6+4)), new Uint8Array(e.slice(0x1c+i*6, 0x1c+i*6+2))];
 }
 
 

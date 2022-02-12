@@ -118,7 +118,7 @@ function shuffle(arr) {
 	}
 }
 
-function randomizeEnemies(iso, log, noTrapperList=[], skipList=[]){
+function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=true){
 
 	preventEnemyRandomizationSoftlocks(iso);
 
@@ -131,14 +131,8 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[]){
 	var pious=new NPC(iso.fst.getFile("Npcs1.npc"));
 	var lindsey=new NPC(iso.fst.getFile("Npcs6.npc"));
 	var karim=new NPC(iso.fst.getFile("Npcs4.npc"));
-
-	const buildTemplateFromStatic = (e)=> {
-		return [new Uint8Array(e.slice(0x18, 0x18+0x4)), new Uint8Array(e.slice(0x20, 0x20+0x2))];
-	};
-
-	const buildTemplateFromDynamic = (e, i)=> {
-		return [new Uint8Array(e.slice(0x18+i*6, 0x18+i*6+4)), new Uint8Array(e.slice(0x1c+i*6, 0x1c+i*6+2))];
-	};
+	var paul=new NPC(iso.fst.getFile("Npcs7.npc"));
+	var edward=new NPC(iso.fst.getFile("Npcs9.npc"));
 
 	var templates=[
 		[buildTemplateFromStatic(pious.entries[0][0]), "Mantarok Zombie"],
@@ -148,6 +142,18 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[]){
 		[buildTemplateFromDynamic(karim.entries[3][0], 0), "Xel'lotath Horror"],
 		[buildTemplateFromDynamic(karim.entries[3][0], 2), "Ulyaoth Horror"],
 		[buildTemplateFromDynamic(karim.entries[3][0], 1), "Chattur'gha Horror"],
+	/*	[buildTemplateFromDynamic(lindsey.entries[3][4], 2), "Xel'lotath Gatekeeper"],
+		[buildTemplateFromDynamic(lindsey.entries[3][4], 1), "Ulyaoth Gatekeeper"],
+		[buildTemplateFromDynamic(lindsey.entries[3][4], 0), "Chattur'gha Gatekeeper"],*/
+
+		[buildTemplateFromDynamic(paul.entries[3][0], 2), "Xel'lotath Bonethief"],
+		[buildTemplateFromDynamic(paul.entries[3][0], 1), "Ulyaoth Bonethief"],
+		[buildTemplateFromDynamic(paul.entries[3][0], 0), "Chattur'gha Bonethief"],
+
+		[buildTemplateFromDynamic(edward.entries[3][16], 2), "Xel'lotath Guardian"],
+		[buildTemplateFromDynamic(edward.entries[3][16], 1), "Ulyaoth Guardian"],
+		[buildTemplateFromDynamic(edward.entries[3][16], 0), "Chattur'gha Guardian"],
+
 		[buildTemplateFromDynamic(lindsey.entries[3][15], 2), "Xel'lotath Trapper"],
 		[buildTemplateFromDynamic(lindsey.entries[3][15], 1), "Ulyaoth Trapper"],
 		[buildTemplateFromDynamic(lindsey.entries[3][15], 0), "Chattur'gha Trapper"],
@@ -160,7 +166,14 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[]){
 		candidates.push(new DataView(temp[0][0].buffer).getUint16(0, false));
 	}
 
-	candidates=candidates.slice(0, 7);//Workaround for trapper based crashes
+	if(experimental){
+		bigLevel(iso, candidates);
+		candidates=candidates.slice(0, 13);//Workaround for trapper based crashes
+	}else{
+		candidates=candidates.slice(0, 7);//Workaround for trapper based crashes
+		templates.splice(7, 6);
+	}
+
 
 	var i=0;
 	while(i<14){
@@ -227,10 +240,10 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[]){
 				var rand=Math.floor(Math.random()*maxIndex);
 				b.set(templates[rand][0][0], 0x18);
 				b.set(templates[rand][0][1], 0x1c);
-				rand=Math.floor(Math.random()*maxIndex);
+
 				b.set(templates[rand][0][0], 0x1e);
 				b.set(templates[rand][0][1], 0x22);
-				rand=Math.floor(Math.random()*maxIndex);
+
 				b.set(templates[rand][0][0], 0x24);
 				b.set(templates[rand][0][1], 0x28);
 

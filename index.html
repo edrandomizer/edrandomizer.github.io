@@ -2,7 +2,7 @@
 <html>
 
 <head>
-    <title>Eternal Darkness Random</title>
+    <title>Eternal Darkness: Sanity's Redemption</title>
     <meta charset="utf-8">
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0">
@@ -29,17 +29,25 @@
 	    input {
 	        margin-top: 10px;
 	    }
+
+	    #info{
+			float: right;
+		}
 	</style>
 </head>
 
 <body>
+    <div id="info">
+		<a href="https://github.com/edrandomizer/edrandomizer.github.io">Source</a><br />
+		<a href="https://github.com/edrandomizer/edrandomizer.github.io/issues/new">Report a bug via github</a>
+    </div>
     <div>
 		<input type="file">
     </div>
     <div id="message"></div>
     <div id="options">
 		<input type="checkbox" id="text_control"  checked="checked" />Randomize text<br />
-		<input type="checkbox" id="enemy_control" checked="checked" />Randomize enemies<br />
+		<select id="enemy_control"><option selected="selected">Experimental</option><option>Safe</option><option>None</option></select> Randomize enemies. <br />If you choose experimental you must enable extended memory in Dolphin via Options -> Configuation -> Advanced -> Enable Emulated Memory Size Override. Then slide the bars all the way to the right.  <br />
 		<input type="checkbox" id="rune_control" checked="checked" />Randomize rune/codex/scroll locations<br />
 		<input type="checkbox" id="gate_control" checked="checked" />Remove spell gates<br />
 		<input type="input" id="seed" placeholder="Seed (leave blank for random)"></br>
@@ -106,7 +114,10 @@
 								compressionBypassNeeded=true;
 								roomTextShuffle(niso, randomLog);
 							}
-							if(document.getElementById("enemy_control").checked){
+							if(document.getElementById("enemy_control").value!="None"){
+								compressionBypassNeeded=true;
+								//stripFMV(niso);
+								deleteUnused(niso);
 								randomLog.addLine("Randomizing enemies", "General");
 								randomizeEnemies(niso, randomLog, [//TODO move this data structure
 								null, //alex
@@ -120,7 +131,7 @@
 								],
 								[
 								null, null, null, null, null, null, null, null, null, [null, null, null, [8,9,10]],//edward's caged enemies
-								]);
+								], document.getElementById("enemy_control").value==="Experimental");
 							}
 							if(document.getElementById("rune_control").checked){
 								randomLog.addLine("Randomizing runes", "General");
