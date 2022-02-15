@@ -142,9 +142,9 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 		[buildTemplateFromDynamic(karim.entries[3][0], 0), "Xel'lotath Horror"],
 		[buildTemplateFromDynamic(karim.entries[3][0], 2), "Ulyaoth Horror"],
 		[buildTemplateFromDynamic(karim.entries[3][0], 1), "Chattur'gha Horror"],
-	/*	[buildTemplateFromDynamic(lindsey.entries[3][4], 2), "Xel'lotath Gatekeeper"],
+		[buildTemplateFromDynamic(lindsey.entries[3][4], 2), "Xel'lotath Gatekeeper"],
 		[buildTemplateFromDynamic(lindsey.entries[3][4], 1), "Ulyaoth Gatekeeper"],
-		[buildTemplateFromDynamic(lindsey.entries[3][4], 0), "Chattur'gha Gatekeeper"],*/
+		[buildTemplateFromDynamic(lindsey.entries[3][4], 0), "Chattur'gha Gatekeeper"],
 
 		[buildTemplateFromDynamic(paul.entries[3][0], 2), "Xel'lotath Bonethief"],
 		[buildTemplateFromDynamic(paul.entries[3][0], 1), "Ulyaoth Bonethief"],

@@ -760,6 +760,24 @@ function bypassCompression(iso, continuation){
 
 }
 
+function extendBPE(iso, continuation){
+	loadAsset("./bpe/allocate.bin", function(code){
+		iso.dol.inject(0x80024b5c, code, [0x8]);
+		loadAsset("./bpe/free.bin", function(code){
+			iso.dol.inject(0x8015e7a8, code, []);
+			loadAsset("./bpe/read.bin", function(code){
+				iso.dol.inject(0x80139bbc, code, [0x2c, 0x30]);
+				loadAsset("./bpe/suballocate.bin", function(code){
+					iso.dol.inject(0x8015e7fc, code, [], true);
+					if(continuation){
+						continuation();
+					}
+				});
+			});
+		});
+	});
+}
+
 function bigLevel(iso, models=null){
 	var common=new GPK(decompressSKASC(iso.getFile("NPCCom.gpk")), true);
 
@@ -797,11 +815,12 @@ function bigLevel(iso, models=null){
 	}*/
 
 	//Extend sizes
-	iso.dol.write2(0x801380ee, 0x100);
-	iso.dol.write2(0x80138cf6, 0x100);
-	iso.dol.write2(0x80138be2, 0x100);
-	iso.dol.write2(0x80138bf6, 0x100);
-	iso.dol.write2(0x80138c1a, 0x100);
+	iso.dol.write2(0x801380ee, 0x50);
+	iso.dol.write2(0x80138cf6, 0x50);
+	iso.dol.write2(0x80138be2, 0x50);
+	iso.dol.write2(0x80138bf6, 0x50);
+	iso.dol.write2(0x80138c1a, 0x50);
+	iso.dol.write2(0x80138ace, 0x50);
 
 	iso.dol.write2(0x8015885e, 0x50);
 	iso.dol.write2(0x801f2fba, 0x50);
@@ -812,12 +831,6 @@ function bigLevel(iso, models=null){
 
 	iso.dol.write2(0x8015aa16, 0x50);
 	iso.dol.write2(0x8015a5fa, 0x50);
-
-	/*iso.dol.write2(0x800248de, 0xfa0);
-	iso.dol.write2(0x80024936, 0xfa0);
-
-	iso.dol.write2(0x800248fe, 0x2ee0);
-	iso.dol.write2(0x8002493a, 0x2ee0);*/
 
 	var newSize=common.getSize()+64;
 
@@ -830,6 +843,7 @@ function bigLevel(iso, models=null){
 	iso.dol.write2(0x80042b6c, 0x60c3);
 
 	iso.getFile("NPCCom.gpk").replace(common);
+
 }
 
 function copyNPC(iso, source, dest){

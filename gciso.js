@@ -192,7 +192,7 @@ class DOL {
 		return (current&0xFC000000)|((current-base)&0x3FFFFFF);
 	}
 
-	inject(addr, code, relocations=[]){//TODO relocations
+	inject(addr, code, relocations=[], replace=false){//TODO relocations
 		if(!this.injectionSection){
 			throw("Must prepare injection section before injection");
 		}
@@ -212,15 +212,19 @@ class DOL {
 		var branchOffset=(this.injectionBase-addr);
 		var branchInstruction=branchOpcode|(branchOffset&0x03FFFFFF);
 
-		var returnOffset=-(branchOffset+code.byteLength);
+		var returnOffset=-(branchOffset+code.byteLength) + (replace ? 4 : 0) ;
 		var branchReturn=branchOpcode|(returnOffset&0x03FFFFFF);
 
-		var newBuf=new ArrayBuffer(code.byteLength+8);
+		var newBuf=new ArrayBuffer(code.byteLength+4+ (replace ? 0 : 4));
 		new Uint8Array(newBuf).set(new Uint8Array(code), 0);
 		var nd=new DataView(newBuf);
 
-		nd.setUint32(code.byteLength, oldInstruction, false);
-		nd.setUint32(code.byteLength+4, branchReturn, false);
+		if(replace){
+			nd.setUint32(code.byteLength, branchReturn, false);
+		}else{
+			nd.setUint32(code.byteLength, oldInstruction, false);
+			nd.setUint32(code.byteLength+4, branchReturn, false);
+		}
 
 		for(var reloc of relocations){
 			var current=nd.getUint32(reloc, false);

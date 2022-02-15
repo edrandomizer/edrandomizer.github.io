@@ -74,6 +74,7 @@
 		var iso=null;
 		var manualMode=false;
 		var compressionBypassNeeded=false;
+		var bpeExtensionNeeded=false;
 
 		input.addEventListener('change', () => {
 			let files = input.files;
@@ -109,6 +110,7 @@
 					}else{
 						displayMessage("Patching");
 						window.setTimeout(function(){
+							prepare(niso);
 							if(document.getElementById("text_control").checked){
 								randomLog.addLine("Randomizing room text", "General");
 								compressionBypassNeeded=true;
@@ -132,6 +134,9 @@
 								[
 								null, null, null, null, null, null, null, null, null, [null, null, null, [8,9,10]],//edward's caged enemies
 								], document.getElementById("enemy_control").value==="Experimental");
+								if(document.getElementById("enemy_control").value==="Experimental"){
+									bpeExtensionNeeded=true;
+								}
 							}
 							if(document.getElementById("rune_control").checked){
 								randomLog.addLine("Randomizing runes", "General");
@@ -142,24 +147,32 @@
 								removeSpellGates(niso, randomLog);
 							}
 
-							const completeDownload=()=>{
-								displayMessage("Rebuilding");
-								window.setTimeout(function(){
-									var buf=niso.toBuffer();
-									displayMessage("Preparing download");
-									download(buf,  "ED.random."+(seed.toString(16))+".iso");
-									randomLog.writeToPage();
-								}, 1);
+							const bpeExtension=()=>{
+
+								const completeDownload= ()=>{
+									displayMessage("Rebuilding");
+									window.setTimeout(function(){
+										var buf=niso.toBuffer();
+										displayMessage("Preparing download");
+										download(buf,  "ED.random."+(seed.toString(16))+".iso");
+										randomLog.writeToPage();
+									}, 1);
+								};
+
+								if(bpeExtensionNeeded){
+									randomLog.addLine("Extending BPE memory", "General");
+									extendBPE(niso, completeDownload);
+								}else{
+									completeDownload();
+								}
+
 							};
 
 							if(compressionBypassNeeded){
 								randomLog.addLine("Bypassing compression", "General");
-								prepare(niso);
-								bypassCompression(niso, function(){
-									completeDownload();
-								});
+								bypassCompression(niso, bpeExtension);
 							}else{
-								completeDownload();
+								bpeExtension();
 							}
 						}, 1);
 					}
