@@ -267,7 +267,7 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 		i++;
 	}
 
-	randomizeScriptEnemies(iso, templates, candidates);
+	randomizeScriptEnemies(iso, templates, candidates, runeSafe);
 
 }
 
@@ -275,7 +275,7 @@ function preventEnemyRandomizationSoftlocks(iso){
 	modifyScript(iso, 1920, (s)=>{s.addFlagSet([[0x80725E70, 2]]);});
 }
 
-function randomizeScriptEnemies(iso, templates, candidates){
+function randomizeScriptEnemies(iso, templates, candidates, runeSafe){
 
 	var regexString='(';
 
@@ -297,6 +297,13 @@ function randomizeScriptEnemies(iso, templates, candidates){
 
 	for(var script of scripts){
 		modifyScript(iso, script[0], function(lua){
+
+			var maxRoll=templates.length;
+
+			if(lua.parseInstruction(lua.instructions[script[1]+7])!="PUSHINT -1"){
+				maxRoll=runeSafe;
+			}
+
 			var rand=Math.floor(Math.random()*templates.length);
 			var geom=new DataView(templates[rand][0][0].buffer).getUint16(0, false);
 			var ai=new DataView(templates[rand][0][0].buffer).getUint16(2, false);
@@ -312,10 +319,19 @@ function randomizeScriptEnemies(iso, templates, candidates){
 
 	var alignments=["ED_ALIGNMENT_XEL", "ED_ALIGNMENT_CHAT", "ED_ALIGNMENT_ULY", "ED_ALIGNMENT_MANT"];
 
+	var spawnMax=5;
+	var spawnRuneSafe=2;
 
 	for(var script of scripts){
 		modifyScript(iso, script[0], function(lua){
-			var randType=Math.floor(Math.random()*5)+3;
+
+			var cr=spawnMax;
+
+			if(lua.parseInstruction(lua.instructions[script[1]+5])!="PUSHINT 0"){
+				cr=spawnRuneSafe
+			}
+
+			var randType=Math.floor(Math.random()*cr)+3;
 			var randAlign=Math.floor(Math.random()* (randType==3 ? 4 : 3) );
 
 			lua.instructions[script[1]+1]=lua.buildInstruction("PUSHINT", randType);
