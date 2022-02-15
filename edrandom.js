@@ -266,10 +266,63 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 
 		i++;
 	}
+
+	randomizeScriptEnemies(iso, templates, candidates);
+
 }
 
 function preventEnemyRandomizationSoftlocks(iso){
 	modifyScript(iso, 1920, (s)=>{s.addFlagSet([[0x80725E70, 2]]);});
+}
+
+function randomizeScriptEnemies(iso, templates, candidates){
+
+	var regexString='(';
+
+	for(var candidate of candidates){
+		regexString+=candidate+"|";
+	}
+	regexString=regexString.slice(0, -1);
+
+	regexString+=')';
+
+	var search=["GETGLOBAL ed3", /PUSHINT .*/, new RegExp('PUSHINT '+regexString)];
+
+	for(var i=0; i<5; i++){
+		search.push(/PUSHINT .*/);
+	}
+	search.push("PUSHINT 4");
+
+	var scripts=searchScripts(iso, search);
+
+	for(var script of scripts){
+		modifyScript(iso, script[0], function(lua){
+			var rand=Math.floor(Math.random()*templates.length);
+			var geom=new DataView(templates[rand][0][0].buffer).getUint16(0, false);
+			var ai=new DataView(templates[rand][0][0].buffer).getUint16(2, false);
+
+			lua.instructions[script[1]+1]=lua.buildInstruction("PUSHINT", ai);
+			lua.instructions[script[1]+2]=lua.buildInstruction("PUSHINT", geom);
+		});
+	}
+
+	search=["GETGLOBAL ed291"];
+
+	scripts=searchScripts(iso, search);
+
+	var alignments=["ED_ALIGNMENT_XEL", "ED_ALIGNMENT_CHAT", "ED_ALIGNMENT_ULY", "ED_ALIGNMENT_MANT"];
+
+
+	for(var script of scripts){
+		modifyScript(iso, script[0], function(lua){
+			var randType=Math.floor(Math.random()*5)+3;
+			var randAlign=Math.floor(Math.random()* (randType==3 ? 4 : 3) );
+
+			lua.instructions[script[1]+1]=lua.buildInstruction("PUSHINT", randType);
+			lua.instructions[script[1]+2]=lua.buildInstruction("GETGLOBAL", alignments[randAlign]);
+		});
+	}
+
 }
 
 function roomTextShuffle(iso, log){
@@ -829,8 +882,9 @@ function removeSpellGates(iso, log){
 
 	fixRuneSpireCrashes(iso);
 
-	modifyScript(iso, 1920, (s)=> {s.addFlagSet([[0x80725E79, 6], //Pious Health Tutorial -> it might make health visible during pause menu on other chapters
-												[0x80725E7E, 5], //Ellia Sanity Tutorial -> it might make Sanity visible during pause menu on other chapters
+	modifyScript(iso, 1920, (s)=> {s.addFlagSet([[0x80725E79, 6], //Pious Health Tutorial
+												[0x80725E7E, 5], //Ellia Sanity Tutorial
+												[0x80725E7E, 4], //Always show sanity bar
 												[0x80725E46, 0], [0x80725E47, 7], //Anthony urns
 												[0x80725E28, 3], //Prevent spell tutorial softlock
 												[0x80725E6D, 7], //Always show magic meter
@@ -892,5 +946,10 @@ function removeSpellGates(iso, log){
 												[0x80725EA1, 1], //Allows grabbing the stethoscope even with an active damage field
 												[0x80725E8E, 6], //Gives Enchanted Gladius on the Parcel
 												]);});
+
+	//unlocks extra jump to game options
+	iso.dol.write2(0x8001f016, 0x18);
+
+	mergeScriptArchives(iso);
 }
 

@@ -509,11 +509,9 @@ class FST{
 		return size+stringSize;
 	}
 
-	writeEntryToBuffer(buffer, offset, entryOffset, stringsBase, stringsOffset, fileOffset, parentOffset, entry){
+	writeEntryToBuffer(buffer, offset, entryOffset, stringsBase, stringsOffset, fileOffset, parentOffset, entry, filesWritten){
 		var initial=entryOffset;
 		var data=new DataView(buffer);
-
-		var filesWritten=[];
 
 		var first=stringsOffset+((entry.type=="dir" ? 1 : 0)<<24);
 		data.setUint32(offset+(entryOffset*12), first, false);
@@ -525,7 +523,7 @@ class FST{
 			var existing=null;
 
 			for(var check of filesWritten){
-				if(check[0]===entry.file.buffer && check[1] % entry.align==0){
+				if(check[0]===entry.file.buffer){
 					existing=check;
 					break;
 				}
@@ -556,7 +554,7 @@ class FST{
 
 			entryOffset++;
 			for(var ent of entry.entries){
-				var n=this.writeEntryToBuffer(buffer, offset, entryOffset, stringsBase, stringsOffset, fileOffset, initial, ent);
+				var n=this.writeEntryToBuffer(buffer, offset, entryOffset, stringsBase, stringsOffset, fileOffset, initial, ent, filesWritten);
 				entryOffset=n[0];
 				stringsOffset=n[1];
 				fileOffset=n[2];
@@ -568,7 +566,7 @@ class FST{
 	}
 
 	writeToBuffer(buffer, offset){
-		var n=this.writeEntryToBuffer(buffer, offset, 0, this.countNestedEntries(this.root)*12, 0, offset+this.getSize(), 0, this.root);
+		var n=this.writeEntryToBuffer(buffer, offset, 0, this.countNestedEntries(this.root)*12, 0, offset+this.getSize(), 0, this.root, []);
 		return n[2];
 	}
 

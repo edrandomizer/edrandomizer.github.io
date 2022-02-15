@@ -601,14 +601,25 @@ function searchScripts(iso, code){
 		for(var i=0; i<script.instructions.length-(code.length-1); i++){
 			var found=1;
 			for(var j=0; j<code.length; j++){
-				if(script.parseInstruction(script.instructions[i+j])!=code[j]){
-					found=0;
-					break;
+				if(typeof code[j]=="string"){
+					if(script.parseInstruction(script.instructions[i+j])!=code[j]){
+						found=0;
+						break;
+					}
+				}else if(typeof code[j]=="function"){
+					if(!code[j](script.parseInstruction(script.instructions[i+j]))){
+						found=0;
+						break;
+					}
+				}else{
+					if(!code[j].test(script.parseInstruction(script.instructions[i+j]))){
+						found=0;
+						break;
+					}
 				}
 			}
 			if(found){
-				results.push(scriptId);
-				break;
+				results.push([scriptId, i]);
 			}
 		}
 	}
@@ -846,6 +857,44 @@ function bigLevel(iso, models=null){
 
 }
 
+function mergeScriptArchives(iso){
+	var archives=[];
+	for(var i=-1; i<17; i++){
+		if(i==14 || i==15){
+			continue;
+		}
+
+		archives.push(new GPK(iso.getFile("ScrLvl"+("00"+i).slice(-2)+".gpk")));
+	}
+
+	var main=archives[0];
+
+	for(var arch of archives){
+		if(arch===main){
+			continue;
+		}
+		for(var scriptnum in arch.entries){
+			if(!main.entries[scriptnum]){
+				main.entries[scriptnum]=arch.entries[scriptnum];
+			}
+		}
+	}
+
+	var buf=asBuf(main);
+	for(var i=-1; i<17; i++){
+		if(i==14 || i==15){
+			continue;
+		}
+
+		iso.getFile("ScrLvl"+("00"+i).slice(-2)+".gpk").replace(buf);
+	}
+
+	//disable async loading of scripts
+	iso.dol.write2(0x8004292c, 0x4800);
+	iso.dol.write4(0x80043edc, 0x600000);
+
+}
+
 function copyNPC(iso, source, dest){
 	var sNpc=new NPC(iso.getFile("Npcs"+source[0]+".npc"));
 	var dNpc=new NPC(iso.getFile("Npcs"+dest[0]+".npc"));
@@ -893,7 +942,6 @@ function decompressAll(dir){
 		}
 	}
 }
-
 
 function decompressSKASC(compressed){
 	compressed=new Uint8Array(asBuf(compressed));
