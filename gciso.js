@@ -192,7 +192,7 @@ class DOL {
 		return (current&0xFC000000)|((current-base)&0x3FFFFFF);
 	}
 
-	inject(addr, code, relocations=[], replace=false){//TODO relocations
+	inject(addr, code, relocations=[], replace=false){
 		if(!this.injectionSection){
 			throw("Must prepare injection section before injection");
 		}

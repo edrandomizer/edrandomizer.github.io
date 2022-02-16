@@ -73,6 +73,7 @@
 
 		var iso=null;
 		var manualMode=false;
+		var debugMode=false;
 		var compressionBypassNeeded=false;
 		var bpeExtensionNeeded=false;
 
@@ -147,33 +148,48 @@
 								removeSpellGates(niso, randomLog);
 							}
 
-							const bpeExtension=()=>{
 
-								const completeDownload= ()=>{
-									displayMessage("Rebuilding");
-									window.setTimeout(function(){
-										var buf=niso.toBuffer();
-										displayMessage("Preparing download");
-										download(buf,  "ED.random."+(seed.toString(16))+".iso");
-										randomLog.writeToPage();
-									}, 1);
-								};
+							var asyncs=[];
+							if(compressionBypassNeeded){
+								asyncs.push((c) => {
+									randomLog.addLine("Bypassing compression", "General");
+									bypassCompression(niso, c);
+								});
+							}
 
-								if(bpeExtensionNeeded){
+							if(bpeExtensionNeeded){
+								asyncs.push((c) => {
 									randomLog.addLine("Extending BPE memory", "General");
-									extendBPE(niso, completeDownload);
-								}else{
-									completeDownload();
-								}
+									extendBPE(niso, c);
+								});
+							}
+							if(debugMode){
+								asyncs.push((c) => {
+									randomLog.addLine("Adding memory check", "General");
+									addMemoryDebugging(niso, c);
+								});
+							}
 
+							asyncs.push((c)=>{
+								displayMessage("Rebuilding");
+								window.setTimeout(function(){
+									var buf=niso.toBuffer();
+									displayMessage("Preparing download");
+									download(buf,  "ED.random."+(seed.toString(16))+".iso");
+									randomLog.writeToPage();
+									c();
+								}, 1);
+							});
+
+							const runAsync= (asyncs) => {
+								if(asyncs.length==0){
+									return;
+								}
+								asyncs[0](() => { runAsync(asyncs.slice(1));});
 							};
 
-							if(compressionBypassNeeded){
-								randomLog.addLine("Bypassing compression", "General");
-								bypassCompression(niso, bpeExtension);
-							}else{
-								bpeExtension();
-							}
+							runAsync(asyncs);
+
 						}, 1);
 					}
 				}, 1);

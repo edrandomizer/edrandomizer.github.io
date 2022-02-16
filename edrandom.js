@@ -288,10 +288,10 @@ function randomizeScriptEnemies(iso, templates, candidates, runeSafe){
 
 	var search=["GETGLOBAL ed3", /PUSHINT .*/, new RegExp('PUSHINT '+regexString)];
 
-	for(var i=0; i<5; i++){
-		search.push(/PUSHINT .*/);
+	for(var i=0; i<8; i++){
+		search.push(/.*/);
 	}
-	search.push("PUSHINT 4");
+	search.push("PUSHINT -1");
 
 	var scripts=searchScripts(iso, search);
 
@@ -307,9 +307,11 @@ function randomizeScriptEnemies(iso, templates, candidates, runeSafe){
 			var rand=Math.floor(Math.random()*templates.length);
 			var geom=new DataView(templates[rand][0][0].buffer).getUint16(0, false);
 			var ai=new DataView(templates[rand][0][0].buffer).getUint16(2, false);
+			var state=new DataView(templates[rand][0][1].buffer).getUint16(0, false);
 
 			lua.instructions[script[1]+1]=lua.buildInstruction("PUSHINT", ai);
 			lua.instructions[script[1]+2]=lua.buildInstruction("PUSHINT", geom);
+			lua.instructions[script[1]+8]=lua.buildInstruction("PUSHINT", state);
 		});
 	}
 

@@ -826,6 +826,7 @@ function bigLevel(iso, models=null){
 	}*/
 
 	//Extend sizes
+	//main arena
 	iso.dol.write2(0x801380ee, 0x50);
 	iso.dol.write2(0x80138cf6, 0x50);
 	iso.dol.write2(0x80138be2, 0x50);
@@ -843,6 +844,15 @@ function bigLevel(iso, models=null){
 	iso.dol.write2(0x8015aa16, 0x50);
 	iso.dol.write2(0x8015a5fa, 0x50);
 
+	//reset
+	iso.dol.write2(0x800248fe, 0x5770);
+	iso.dol.write2(0x8002493a, 0x5770);
+
+	//ai
+	iso.dol.write2(0x80024ae2, 0x40);
+	iso.dol.write2(0x80024a76, 0x40);
+
+	//npccom.gpk
 	var newSize=common.getSize()+64;
 
 	iso.dol.write2(0x80042b9e, newSize&0xffff);
@@ -855,6 +865,15 @@ function bigLevel(iso, models=null){
 
 	iso.getFile("NPCCom.gpk").replace(common);
 
+}
+
+function addMemoryDebugging(iso, continuation){
+	loadAsset("./debug.bin", function(code){
+		iso.dol.inject(0x8017ce54, code);
+		if(continuation){
+			continuation();
+		}
+	});
 }
 
 function mergeScriptArchives(iso){
