@@ -1098,7 +1098,7 @@ function mergeScriptArchives(iso){
 
 	//disable async loading of scripts
 	iso.dol.write2(0x8004292c, 0x4800);
-	iso.dol.write4(0x80043edc, 0x600000);
+	iso.dol.write4(0x80043edc, 0x60000000);
 
 }
 
