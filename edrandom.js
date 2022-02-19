@@ -364,7 +364,7 @@ function randomizeMeleeWeapons(iso, log){
 		//[6, [0, 1205, 0x30], "Lindsey Torch"],
 		//[7, [1, 13], "Paul Torch"],
 		//[10, [1, 3], "Peter Torch"],
-		//[4, [1, 2], "Ram Dao"],
+		[4, [1, 2], "Ram Dao"],
 		[5, [1, 11], "Max Sabre"],
 		[9, [1, 22], "Edward Sabre"],
 		[6, [0, 1205, 0x23], "Kukri"],
@@ -432,6 +432,8 @@ function randomizeMeleeWeapons(iso, log){
 			entry.setUint16(0x3c, data.getUint16(0x3c, false));
 			entry.setUint16(0x3e, data.getUint16(0x3e, false));
 			entry.setUint16(0x40, data.getUint16(0x40, false));
+
+			entry.setUint16(0x24, data.getUint16(0x24, false));
 		}
 
 		for(var loc of dest[1]){
