@@ -364,7 +364,7 @@ function randomizeMeleeWeapons(iso, log){
 		//[6, [0, 1205, 0x30], "Lindsey Torch"],
 		//[7, [1, 13], "Paul Torch"],
 		//[10, [1, 3], "Peter Torch"],
-		[4, [1, 2], "Ram Dao"],
+		//[4, [1, 2], "Ram Dao"],
 		[5, [1, 11], "Max Sabre"],
 		[9, [1, 22], "Edward Sabre"],
 		[6, [0, 1205, 0x23], "Kukri"],
