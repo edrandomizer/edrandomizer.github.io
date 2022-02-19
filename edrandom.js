@@ -135,35 +135,35 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 	var edward=new NPC(iso.fst.getFile("Npcs9.npc"));
 
 	var templates=[
-		[buildTemplateFromStatic(pious.entries[0][0]), "Mantarok Zombie"],
-		[buildTemplateFromStatic(lindsey.entries[0][0xe]), "Xel'lotath Zombie"],
-		[buildTemplateFromStatic(lindsey.entries[0][0x14]), "Ulyaoth Zombie"],
-		[buildTemplateFromStatic(lindsey.entries[0][9]), "Chattur'gha Zombie"],
-		[buildTemplateFromDynamic(karim.entries[3][0], 0), "Xel'lotath Horror"],
-		[buildTemplateFromDynamic(karim.entries[3][0], 2), "Ulyaoth Horror"],
-		[buildTemplateFromDynamic(karim.entries[3][0], 1), "Chattur'gha Horror"],
-		[buildTemplateFromDynamic(lindsey.entries[3][4], 2), "Xel'lotath Gatekeeper"],
-		[buildTemplateFromDynamic(lindsey.entries[3][4], 1), "Ulyaoth Gatekeeper"],
-		[buildTemplateFromDynamic(lindsey.entries[3][4], 0), "Chattur'gha Gatekeeper"],
+		[pious.buildTemplateFromEntry(0, 0), "Mantarok Zombie"],
+		[lindsey.buildTemplateFromEntry(0, 0xe), "Xel'lotath Zombie"],
+		[lindsey.buildTemplateFromEntry(0, 0x14), "Ulyaoth Zombie"],
+		[lindsey.buildTemplateFromEntry(0, 9), "Chattur'gha Zombie"],
+		[karim.buildTemplateFromEntry(3, 0, 0), "Xel'lotath Horror"],
+		[karim.buildTemplateFromEntry(3, 0, 2), "Ulyaoth Horror"],
+		[karim.buildTemplateFromEntry(3, 0, 1), "Chattur'gha Horror"],
+		[lindsey.buildTemplateFromEntry(3, 4, 2), "Xel'lotath Gatekeeper"],
+		[lindsey.buildTemplateFromEntry(3, 4, 1), "Ulyaoth Gatekeeper"],
+		[lindsey.buildTemplateFromEntry(3, 4, 0), "Chattur'gha Gatekeeper"],
 
-		[buildTemplateFromDynamic(paul.entries[3][0], 2), "Xel'lotath Bonethief"],
-		[buildTemplateFromDynamic(paul.entries[3][0], 1), "Ulyaoth Bonethief"],
-		[buildTemplateFromDynamic(paul.entries[3][0], 0), "Chattur'gha Bonethief"],
+		[paul.buildTemplateFromEntry(3, 0, 2), "Xel'lotath Bonethief"],
+		[paul.buildTemplateFromEntry(3, 0, 1), "Ulyaoth Bonethief"],
+		[paul.buildTemplateFromEntry(3, 0, 0), "Chattur'gha Bonethief"],
 
-		[buildTemplateFromDynamic(edward.entries[3][16], 2), "Xel'lotath Guardian"],
-		[buildTemplateFromDynamic(edward.entries[3][16], 1), "Ulyaoth Guardian"],
-		[buildTemplateFromDynamic(edward.entries[3][16], 0), "Chattur'gha Guardian"],
+		[edward.buildTemplateFromEntry(3, 16, 2), "Xel'lotath Guardian"],
+		[edward.buildTemplateFromEntry(3, 16, 1), "Ulyaoth Guardian"],
+		[edward.buildTemplateFromEntry(3, 16, 0), "Chattur'gha Guardian"],
 
-		[buildTemplateFromDynamic(lindsey.entries[3][15], 2), "Xel'lotath Trapper"],
-		[buildTemplateFromDynamic(lindsey.entries[3][15], 1), "Ulyaoth Trapper"],
-		[buildTemplateFromDynamic(lindsey.entries[3][15], 0), "Chattur'gha Trapper"],
+		[lindsey.buildTemplateFromEntry(3, 15, 2), "Xel'lotath Trapper"],
+		[lindsey.buildTemplateFromEntry(3, 15, 1), "Ulyaoth Trapper"],
+		[lindsey.buildTemplateFromEntry(3, 15, 0), "Chattur'gha Trapper"],
 	];
 
 	const runeSafe=7;
 
 	var candidates=[];
 	for(var temp of templates){
-		candidates.push(new DataView(temp[0][0].buffer).getUint16(0, false));
+		candidates.push(temp[0].model);
 	}
 
 	if(experimental){
@@ -194,7 +194,7 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 			var cIndex;
 			if((cIndex=candidates.indexOf(type))!==-1 && (!skipList[i] || !skipList[i][0] || skipList[i][0].indexOf(j)===-1) ){
 
-				var b=new Uint8Array(npcs.entries[0][j]);
+
 				var maxIndex=templates.length;
 
 				var script=new DataView(npcs.entries[0][j]).getUint16(0x1c, false);
@@ -203,8 +203,8 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 					maxIndex=runeSafe;
 				}
 				var rand=Math.floor(Math.random()*maxIndex);
-				b.set(templates[rand][0][0], 0x18);
-				b.set(templates[rand][0][1], 0x20);
+
+				npcs.applyTemplate(0, j, templates[rand][0]);
 
 				var room=d.getUint16(0x6, false);
 				log.addLine(	{"level":i,
@@ -228,7 +228,7 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 			var type=d.getUint16(0x18, false);
 			var cIndex;
 			if((cIndex=candidates.indexOf(type))!==-1 && (!skipList[i] || !skipList[i][3] || skipList[i][3].indexOf(j)===-1) ){
-				var b=new Uint8Array(npcs.entries[3][j]);
+
 				var maxIndex=templates.length;
 
 				var script=new DataView(npcs.entries[3][j]).getUint16(0x2a, false);
@@ -238,14 +238,8 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 				}
 
 				var rand=Math.floor(Math.random()*maxIndex);
-				b.set(templates[rand][0][0], 0x18);
-				b.set(templates[rand][0][1], 0x1c);
 
-				b.set(templates[rand][0][0], 0x1e);
-				b.set(templates[rand][0][1], 0x22);
-
-				b.set(templates[rand][0][0], 0x24);
-				b.set(templates[rand][0][1], 0x28);
+				npcs.applyTemplate(3, j, templates[rand][0]);
 
 				var room=d.getUint16(0x6, false);
 				log.addLine(	{"level":i,
@@ -273,6 +267,7 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 
 function preventEnemyRandomizationSoftlocks(iso){
 	modifyScript(iso, 1920, (s)=>{s.addFlagSet([[0x80725E70, 2]]);});
+	modifyScript(iso, 2206, (s)=>{ s.instructions[0x129]=s.buildInstruction("POP", 3); s.instructions[0x13f]=s.buildInstruction("POP", 3); });
 }
 
 function randomizeScriptEnemies(iso, templates, candidates, runeSafe){
@@ -291,7 +286,7 @@ function randomizeScriptEnemies(iso, templates, candidates, runeSafe){
 	for(var i=0; i<8; i++){
 		search.push(/.*/);
 	}
-	search.push("PUSHINT -1");
+	search.push(/PUSHINT -?1/);
 
 	var scripts=searchScripts(iso, search);
 
@@ -300,14 +295,22 @@ function randomizeScriptEnemies(iso, templates, candidates, runeSafe){
 
 			var maxRoll=templates.length;
 
+			for(var check of lua.instructions){
+				if(lua.parseInstruction(check)=="GETGLOBAL ed98"){
+					maxRoll=templates.length-3;
+					break;
+				}
+			}
+
 			if(lua.parseInstruction(lua.instructions[script[1]+7])!="PUSHINT -1"){
 				maxRoll=runeSafe;
 			}
 
-			var rand=Math.floor(Math.random()*templates.length);
-			var geom=new DataView(templates[rand][0][0].buffer).getUint16(0, false);
-			var ai=new DataView(templates[rand][0][0].buffer).getUint16(2, false);
-			var state=new DataView(templates[rand][0][1].buffer).getUint16(0, false);
+
+			var rand=Math.floor(Math.random()*maxRoll);
+			var geom=templates[rand][0].model;
+			var ai=templates[rand][0].animations;
+			var state=templates[rand][0].state;
 
 			lua.instructions[script[1]+1]=lua.buildInstruction("PUSHINT", ai);
 			lua.instructions[script[1]+2]=lua.buildInstruction("PUSHINT", geom);
@@ -341,6 +344,120 @@ function randomizeScriptEnemies(iso, templates, candidates, runeSafe){
 		});
 	}
 
+}
+
+function randomizeMeleeWeapons(iso, log){
+
+	log.addType("item_change", (d) => {
+		return `${d.originalName} -> ${d.newName}`;
+	});
+
+	var pool=[
+		[1, [0, 1200, 6], "Pious Gladius"],
+		[[0, 13], [1, 6], "Alex Gladius"],
+		[[0, 13], [[0, 2412, 0xad], [0, 2412, 0xbf], [0, 2412, 0xd1]], "Enchanted Gladius"],
+		[2, [0, 1201, 0x9], "Short Sword"],
+		[3, [0, 1939, 0x5a], "Scramasax"],
+		[[3, 7], [0, 1810, 0x36], "Double Edged Sword"],
+		[4, [0, 1203, 0x9], "Tulwar"],
+		//[4, [1, 8], "Karim Torch"],
+		//[6, [0, 1205, 0x30], "Lindsey Torch"],
+		//[7, [1, 13], "Paul Torch"],
+		//[10, [1, 3], "Peter Torch"],
+		[4, [1, 2], "Ram Dao"],
+		[5, [1, 11], "Max Sabre"],
+		[9, [1, 22], "Edward Sabre"],
+		[6, [0, 1205, 0x23], "Kukri"],
+		[7, [1, 3], "Mace"],
+		[8, [1, 4], "Saif"],
+		[11, [0, 1210, 0x9], "Fire Axe"],
+	];
+
+	var invu=new GPK(iso.getFile("InvU.bin"));
+	var newInvu=new GPK(iso.getFile("InvU.bin"));
+
+	var npcs=[];
+
+	for(var i=0; i<14; i++){
+		if(i==12){
+			continue;
+		}
+
+		npcs[i]=new NPC(iso.getFile("Npcs"+i+".npc"));
+	}
+
+	for(var i in pool){
+		if(!Array.isArray(pool[i][0])){
+			pool[i][0]=[pool[i][0]];
+		}
+		if(!Array.isArray(pool[i][1][0])){
+			pool[i][1]=[pool[i][1]];
+		}
+
+		var source=pool[i][1][0];
+
+		if(source[0]){
+			pool[i][3]=npcs[pool[i][0][0]].buildTemplateFromEntry(2, source[1]);
+		}else{
+			var script=findScript(iso, source[1]);
+
+			pool[i][3]=npcs[0].buildTemplateFromScript(script, source[2]);
+		}
+	}
+
+	var rand=[];
+	for(var i=0; i<pool.length; i++){
+		rand.push(i);
+	}
+
+	shuffle(rand);
+
+	for(var i in pool){
+
+		var source=pool[rand[i]];
+		var dest=pool[i];
+
+		log.addLine({"originalName": dest[2], "newName": source[2]}, "Items", "item_change");
+		for(var level of dest[0]){
+			copyItem(iso, source[0][0], level, source[3].model);
+
+			var data=new DataView(invu.entries[dest[3].state][0])
+
+			var animation=data.getUint16(0x36, false);
+			var entry=new DataView(newInvu.entries[source[3].state][0]);
+
+			entry.setUint16(0x36, data.getUint16(0x36, false));
+			entry.setUint16(0x38, data.getUint16(0x38, false));
+			entry.setUint16(0x3a, data.getUint16(0x3a, false));
+			entry.setUint16(0x3c, data.getUint16(0x3c, false));
+			entry.setUint16(0x3e, data.getUint16(0x3e, false));
+			entry.setUint16(0x40, data.getUint16(0x40, false));
+		}
+
+		for(var loc of dest[1]){
+			if(loc[0]){
+				npcs[dest[0][0]].applyTemplate(2, loc[1], source[3]);
+			}else{
+				modifyScript(iso, loc[1], (lua)=>{
+					lua.instructions[loc[2]+1]=lua.buildInstruction("PUSHINT", source[3].animations);
+					lua.instructions[loc[2]+2]=lua.buildInstruction("PUSHINT", source[3].model);
+					lua.instructions[loc[2]+4]=lua.buildInstruction("PUSHINT", source[3].state);
+				});
+			}
+		}
+
+	}
+
+	for(var i in npcs){
+		if(i==12){
+			continue;
+		}
+		iso.getFile("Npcs"+i+".npc").replace(npcs[i]);
+	}
+
+	iso.getFile("InvU.bin").replace(newInvu);
+
+	extendMemorySizes(iso);
 }
 
 function roomTextShuffle(iso, log){

@@ -50,6 +50,7 @@
 		<select id="enemy_control"><option selected="selected">Experimental</option><option>Safe</option><option>None</option></select> Randomize enemies. <br />If you choose experimental you must enable extended memory in Dolphin via Options -> Configuation -> Advanced -> Enable Emulated Memory Size Override. Then slide the bars all the way to the right.  <br />
 		<input type="checkbox" id="rune_control" checked="checked" />Randomize rune/codex/scroll locations<br />
 		<input type="checkbox" id="gate_control" checked="checked" />Remove spell gates<br />
+		<input type="checkbox" id="melee_weapon_control" checked="checked" />Randomize melee weapons<br />
 		<input type="input" id="seed" placeholder="Seed (leave blank for random)"></br>
     </div>
     <div id="log">
@@ -76,6 +77,7 @@
 		var debugMode=false;
 		var compressionBypassNeeded=false;
 		var bpeExtensionNeeded=false;
+		var textExtensionNeeded=false;
 
 		input.addEventListener('change', () => {
 			let files = input.files;
@@ -109,7 +111,7 @@
 						iso=niso;
 						displayMessage("Ready");
 					}else{
-						displayMessage("Patching");
+						displayMessage("Patching. This may take some time.");
 						window.setTimeout(function(){
 							prepare(niso);
 							if(document.getElementById("text_control").checked){
@@ -117,9 +119,15 @@
 								compressionBypassNeeded=true;
 								roomTextShuffle(niso, randomLog);
 							}
+							if(document.getElementById("melee_weapon_control").checked){
+								randomLog.addLine("Randomizing melee weapons", "General");
+								compressionBypassNeeded=true;
+								randomizeMeleeWeapons(niso, randomLog);
+							}
+
 							if(document.getElementById("enemy_control").value!="None"){
 								compressionBypassNeeded=true;
-								//stripFMV(niso);
+								stripFMV(niso);
 								deleteUnused(niso);
 								randomLog.addLine("Randomizing enemies", "General");
 								randomizeEnemies(niso, randomLog, [//TODO move this data structure
@@ -134,7 +142,8 @@
 								],
 								[
 								null, null, null, null, null, null, null, null, null, [null, null, null, [8,9,10]],//edward's caged enemies
-								], document.getElementById("enemy_control").value==="Experimental");
+								],
+								document.getElementById("enemy_control").value==="Experimental");
 								if(document.getElementById("enemy_control").value==="Experimental"){
 									bpeExtensionNeeded=true;
 								}
@@ -146,8 +155,9 @@
 							if(document.getElementById("gate_control").checked){
 								randomLog.addLine("Removing spell gates", "General");
 								removeSpellGates(niso, randomLog);
+								textExtensionNeeded=true;
+								compressionBypassNeeded=true;
 							}
-
 
 							var asyncs=[];
 							if(compressionBypassNeeded){
@@ -163,12 +173,21 @@
 									extendBPE(niso, c);
 								});
 							}
+
+							if(textExtensionNeeded){
+								asyncs.push((c) =>{
+									randomLog.addLine("Merging room text", "General");
+									mergeRoomText(niso, c);
+								});
+							}
+
 							if(debugMode){
 								asyncs.push((c) => {
 									randomLog.addLine("Adding memory check", "General");
 									addMemoryDebugging(niso, c);
 								});
 							}
+
 
 							asyncs.push((c)=>{
 								displayMessage("Rebuilding");

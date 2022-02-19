@@ -1,4 +1,81 @@
 
+class CPK {
+	constructor(buffer){
+		if(!buffer){
+			this.entries=[];
+			return;
+		}
+		buffer=asBuf(buffer);
+
+		const raw=new DataView(buffer);
+
+		if(raw.getUint32(0, false)!=0x2 || raw.getUint32(4, false)!=0x20){
+			throw "Bad magic number in CPK";
+		}
+
+		this.magic=raw.getUint32(8, false);
+		var count=raw.getUint32(0x10, false);
+
+		var headerOffset=raw.getUint32(0x14, false);
+
+		var entries=[];
+
+		for(var i=0; i<count; i++){
+
+			var offset=raw.getUint32(headerOffset+(i*0x10), false);
+			var size=raw.getUint32(headerOffset+0x4+(i*0x10), false);
+
+			var buf=buffer.slice(offset, offset+size);
+
+			entries[i]=[
+				raw.getUint16(headerOffset+0x8+(i*0x10) , false),
+				buf
+			];
+		}
+		this.entries=entries;
+	}
+
+	getSize(){
+		var size=0x20;
+		size+=this.entries.length*0x10;
+		for(var ent of this.entries){
+			size+=ent[1].byteLength;
+		}
+		return size;
+	}
+
+	toBuffer(){
+		const buf=new ArrayBuffer(this.getSize());
+		const arr=new Uint8Array(buf);
+
+		const d=new DataView(buf);
+
+		d.setUint32(0, 2, false);
+		d.setUint32(4, 0x20, false);
+		d.setUint32(8, this.magic, false);
+		d.setUint32(0x10, this.entries.length, false);
+		d.setUint32(0x14, 0x20, false);
+
+		var i=0;
+		var curOffset=0x20+this.entries.length*0x10;
+
+		for(var anim of this.entries){
+
+			d.setUint32(0x20+(i*0x10), curOffset, false);
+			d.setUint32(0x24+(i*0x10), anim[1].byteLength, false);
+			d.setUint16(0x28+(i*0x10), anim[0], false);
+
+			arr.set(new Uint8Array(anim[1]), curOffset);
+
+			d.setUint32(curOffset, this.magic, false);
+
+			curOffset+=anim[1].byteLength;
+
+			i++;
+		}
+		return buf;
+	}
+}
 
 class NPC{
 	constructor(buffer){
@@ -72,6 +149,112 @@ class NPC{
 
 		return buf;
 	}
+
+	buildTemplateFromScript(script, offset){
+		if(script.parseInstruction(script.instructions[offset])!="GETGLOBAL ed3"){
+			throw "Tried to parse a template from a non-ed3 instruction";
+		}
+
+		var type=script.parseInstruction(script.instructions[offset+11]);
+		if(!(type=/PUSHINT (.*)/.exec(type))){
+			throw "Non-standard type set";
+		}
+		type=type[1];
+
+		var model=script.parseInstruction(script.instructions[offset+2]);
+		if(!(model=/PUSHINT (.*)/.exec(model))){
+			throw "Non-standard model set";
+		}
+		model=model[1];
+
+		var animations=script.parseInstruction(script.instructions[offset+1]);
+		if(!(animations=/PUSHINT (.*)/.exec(animations))){
+			throw "Non-standard animation set";
+		}
+		animations=animations[1];
+
+		var state=script.parseInstruction(script.instructions[offset+ (type==-1 ? 8 : 4)]);
+		if(!(state=/PUSHINT (.*)/.exec(state))){
+			throw "Non-standard state set";
+		}
+		state=state[1];
+
+		return this.buildTemplate(parseInt(model), parseInt(animations), parseInt(state));
+	}
+
+	buildTemplateFromEntry(type, id, alignment=0){
+		if(type==0){
+			return this.buildTemplateFromStatic(this.entries[type][id]);
+		}else if(type==2){
+			return this.buildTemplateFromItem(this.entries[type][id]);
+		}else if(type==3){
+			return this.buildTemplateFromDynamic(this.entries[type][id], alignment);
+		}
+	}
+
+
+	buildTemplateFromStatic(e){
+		var d=new DataView(e);
+
+		return this.buildTemplate(d.getUint16(0x18, false), d.getUint16(0x1a, false), d.getUint16(0x20, false));
+	}
+
+	buildTemplateFromDynamic(e, i){
+		var d=new DataView(e);
+
+		return this.buildTemplate(d.getUint16(0x18+i*6, false), d.getUint16(0x1a+i*6, false), d.getUint16(0x1c+i*6, false));
+	}
+
+	buildTemplateFromItem(e){
+		var d=new DataView(e);
+
+		return this.buildTemplate(d.getUint16(0x1c, false), d.getUint16(0x20, false), d.getUint16(0x1e, false));
+	}
+
+	applyTemplate(type, id, template){
+		if(type==0){
+			this.applyTemplateToStatic(this.entries[type][id], template);
+		}else if(type==2){
+			this.applyTemplateToItem(this.entries[type][id], template);
+		}else if(type==3){
+			for(var i=0; i<3; i++){
+				this.applyTemplateToDynamic(this.entries[type][id], template, i);
+			}
+		}
+	}
+
+	applyTemplateToStatic(entry, template){
+		var d=new DataView(entry);
+
+		d.setUint16(0x18, template.model, false);
+		d.setUint16(0x1a, template.animations, false);
+		d.setUint16(0x20, template.state, false);
+	}
+
+	applyTemplateToItem(entry, template){
+		var d=new DataView(entry);
+
+		d.setUint16(0x1c, template.model, false);
+		d.setUint16(0x20, template.animations, false);
+		d.setUint16(0x1e, template.state, false);
+	}
+
+	applyTemplateToDynamic(entry, template, alignment){
+		var d=new DataView(entry);
+
+		d.setUint16(0x18+alignment*6, template.model, false);
+		d.setUint16(0x1a+alignment*6, template.animations, false);
+		d.setUint16(0x1c+alignment*6, template.state, false);
+	}
+
+	buildTemplate(model, animations, state){
+		return {
+			"model":model,
+			"animations":animations,
+			"state":state,
+		};
+	}
+
 }
 
 class GPK{
@@ -825,7 +1008,26 @@ function bigLevel(iso, models=null){
 		iso.getFile("Level"+("00"+lvl[2]).slice(-2)+".bin").replace(lvl[1]);
 	}*/
 
-	//Extend sizes
+
+	//npccom.gpk
+	var newSize=common.getSize()+64;
+
+	iso.dol.write2(0x80042b9e, newSize&0xffff);
+	iso.dol.write2(0x80042b92, (newSize>>>16)&0xffff);
+	iso.dol.write2(0x80042b9c, 0x60a5);
+
+	iso.dol.write2(0x80042b6e, newSize&0xffff);
+	iso.dol.write2(0x80042b62, (newSize>>>16)&0xffff);
+	iso.dol.write2(0x80042b6c, 0x60c3);
+
+	iso.getFile("NPCCom.gpk").replace(common);
+
+	extendMemorySizes(iso);
+
+}
+
+function extendMemorySizes(iso){
+
 	//main arena
 	iso.dol.write2(0x801380ee, 0x50);
 	iso.dol.write2(0x80138cf6, 0x50);
@@ -851,20 +1053,6 @@ function bigLevel(iso, models=null){
 	//ai
 	iso.dol.write2(0x80024ae2, 0x40);
 	iso.dol.write2(0x80024a76, 0x40);
-
-	//npccom.gpk
-	var newSize=common.getSize()+64;
-
-	iso.dol.write2(0x80042b9e, newSize&0xffff);
-	iso.dol.write2(0x80042b92, (newSize>>>16)&0xffff);
-	iso.dol.write2(0x80042b9c, 0x60a5);
-
-	iso.dol.write2(0x80042b6e, newSize&0xffff);
-	iso.dol.write2(0x80042b62, (newSize>>>16)&0xffff);
-	iso.dol.write2(0x80042b6c, 0x60c3);
-
-	iso.getFile("NPCCom.gpk").replace(common);
-
 }
 
 function addMemoryDebugging(iso, continuation){
@@ -914,6 +1102,59 @@ function mergeScriptArchives(iso){
 
 }
 
+function mergeRoomText(iso, continuation=false){
+	var archives=[];
+	for(var i=-1; i<17; i++){
+		if(i==14 || i==15){
+			continue;
+		}
+
+		archives.push(new GPK(decompressSKASC(iso.getFile("RmTxt"+("00"+i).slice(-2)+".cmp"))));
+	}
+
+	var merged=mergeGPK(archives);
+
+	for(var i=-1; i<17; i++){
+		if(i==14 || i==15){
+			continue;
+		}
+
+		iso.getFile("RmTxt"+("00"+i).slice(-2)+".cmp").replace(merged);
+	}
+
+	iso.dol.write2(0x80043806, 0x2);
+	iso.dol.write4(0x80043808, 0x808d9b80);
+
+	loadAsset("./textMemory.bin", (code)=>{
+		iso.dol.inject(0x80024b20, code, [0x8]);
+		if(continuation){
+			continuation();
+		}
+	});
+}
+
+function mergeGPK(gpks){
+	var merged=gpks[0];
+	gpks=gpks.slice(1);
+
+	for(var g of gpks){
+		for(var i in g.entries){
+			if(Array.isArray(g.entries[i])){
+				for(var j in g.entries[i]){
+					if(!merged.entries[i][j]){
+						merged.entries[i][j]=g.entries[i][j];
+					}
+				}
+			}else{
+				if(!merged.entries[i]){
+					merged.entries[i]=g.entries[i];
+				}
+			}
+		}
+	}
+	return merged;
+}
+
 function copyNPC(iso, source, dest){
 	var sNpc=new NPC(iso.getFile("Npcs"+source[0]+".npc"));
 	var dNpc=new NPC(iso.getFile("Npcs"+dest[0]+".npc"));
@@ -939,14 +1180,60 @@ function copyNPC(iso, source, dest){
 	iso.getFile("Npcs"+dest[0]+".npc").replace(dNpc);
 }
 
-function buildTemplateFromStatic(e){
-	return [new Uint8Array(e.slice(0x18, 0x18+0x4)), new Uint8Array(e.slice(0x20, 0x20+0x2))];
+function copyItem(iso, sourceLevel, destLevel, id){
+	var sourcel=new GPK(decompressSKASC(iso.getFile("Level"+("00"+sourceLevel).slice(-2)+".bin"), true));
+	var destl=new GPK(decompressSKASC(iso.getFile("Level"+("00"+destLevel).slice(-2)+".bin")), true);
+
+	var s1=new GPK(sourcel.entries[1], true);
+	var s2=new GPK(sourcel.entries[2], true);
+
+	var d1=new GPK(destl.entries[1], true);
+	var d2=new GPK(destl.entries[2], true);
+
+	d1.entries[id]=s1.entries[id];
+	d2.entries[id]=s2.entries[id];
+
+	destl.entries[1]=d1;
+	destl.entries[2]=d2;
+
+	iso.getFile("Level"+("00"+destLevel).slice(-2)+".bin").replace(destl);
 }
 
-function buildTemplateFromDynamic(e, i){
-	return [new Uint8Array(e.slice(0x18+i*6, 0x18+i*6+4)), new Uint8Array(e.slice(0x1c+i*6, 0x1c+i*6+2))];
+function changeWeaponAnimations(iso, weapon, animation){
+	var invu=new GPK(iso.getFile("InvU.bin"));
+
+	var entry=new DataView(invu.entries[weapon][0]);
+
+	entry.setUint16(0x36, animation);
+	entry.setUint16(0x38, animation+1);
+	entry.setUint16(0x3a, animation+2);
+	entry.setUint16(0x3c, animation+3);
+	entry.setUint16(0x3e, animation+4);
+	entry.setUint16(0x40, animation+5);
+
+	iso.getFile("InvU.bin").replace(invu);
 }
 
+function copyCharacter(iso, sourceLevel, destLevel, id){
+	var sourcel=new GPK(decompressSKASC(iso.getFile("Level"+("00"+sourceLevel).slice(-2)+".bin"), true));
+	var destl=new GPK(decompressSKASC(iso.getFile("Level"+("00"+destLevel).slice(-2)+".bin")), true);
+
+	var s0=new GPK(sourcel.entries[0], true);
+
+	var d0=new GPK(destl.entries[0], true);
+
+	d0.entries[id]=s0.entries[id];
+
+	destl.entries[0]=d0;
+
+	iso.getFile("Level"+("00"+destLevel).slice(-2)+".bin").replace(destl);
+}
+
+function getMainModelForLevel(level){
+	var levelModels=[9, 0, 70, 85, 150, 18, 73, 74, 76, 69, 75, 81, null, 9];
+
+	return levelModels[level];
+}
 
 function decompressAll(dir){
 	for(var entry of dir.entries){
@@ -964,6 +1251,10 @@ function decompressAll(dir){
 
 function decompressSKASC(compressed){
 	compressed=new Uint8Array(asBuf(compressed));
+	if(compressed[0]!=0x2a || compressed[1]!=0x53 || compressed[2]!=0x4b || compressed[3]!=0x5f || compressed[4]!=0x41 || compressed[5]!=0x53 || compressed[6]!=0x43 || compressed[7]!=0x2a){
+		return compressed.buffer;
+	}
+
 	var compLength=compressed.length*compressed.BYTES_PER_ELEMENT;
 	var buf = Module._malloc(compLength+8);
 	Module.HEAPU8.set(compressed, buf+8);
@@ -978,8 +1269,55 @@ function decompressSKASC(compressed){
 	return view.buffer;
 }
 
+function dumpBootText(iso){
+	var boot=new GPK(decompressSKASC(iso.getFile("EBootPak.bin")));
+	var s="";
+	for(var i in boot.entries){
+		if(i==10){
+			continue;
+		}
+		try{
+			var bc=new GPK(boot.entries[i]);
+
+			for(var j in bc.entries){
+				for(var k in bc.entries[j]){
+					s+="Index "+i+":"+j+":"+k+"\n\n"+decompressText(bc.entries[j][k].slice(4))+"\n\n";
+				}
+			}
+		}catch(e){
+		}
+	}
+	return s;
+}
+
+function dumpInvU(iso){
+	var invu=new GPK(iso.getFile("InvU.bin"));
+	var boot=new GPK(decompressSKASC(iso.getFile("EBootPak.bin")));
+
+	var itemText=new GPK(boot.entries[4]);
+
+	var res=[];
+
+	for(var i in invu.entries){
+		var entry=new DataView(invu.entries[i][0]);
+
+		var textIndex=entry.getUint8(0x4c);
+		var pickup=entry.getUint8(0x4d);
+		var desc=entry.getUint8(0x4e);
+		var name=entry.getUint8(0x4f);
+
+
+		res[i]=[decompressText(itemText.entries[textIndex][name].slice(4)),
+		        decompressText(itemText.entries[textIndex][desc].slice(4)),
+		        decompressText(itemText.entries[textIndex][pickup].slice(4)),
+		        entry];
+
+	}
+	return res;
+}
+
 function decompressText(compressed, decompressedLength=0){
-	compressed=Uint8Array(asBuf(compressed));
+	compressed=new Uint8Array(asBuf(compressed));
 	if(decompressedLength==0){
 		decompressedLength=compressed.length*compressed.BYTES_PER_ELEMENT;
 	}
