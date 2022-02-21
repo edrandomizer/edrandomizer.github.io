@@ -78,6 +78,8 @@
 		var compressionBypassNeeded=false;
 		var bpeExtensionNeeded=false;
 		var textExtensionNeeded=false;
+		var circleScriptNeeded=false;
+		var memoryExtensionNeeded=false;
 
 		input.addEventListener('change', () => {
 			let files = input.files;
@@ -117,18 +119,21 @@
 							if(document.getElementById("text_control").checked){
 								randomLog.addLine("Randomizing room text", "General");
 								compressionBypassNeeded=true;
+								memoryExtensionNeeded=true;
 								roomTextShuffle(niso, randomLog);
 							}
 							if(document.getElementById("melee_weapon_control").checked){
 								randomLog.addLine("Randomizing melee weapons", "General");
 								compressionBypassNeeded=true;
+								memoryExtensionNeeded=true;
+								deleteUnused(niso);
+								stripFMV(niso);
 								randomizeMeleeWeapons(niso, randomLog);
 							}
 
 							if(document.getElementById("enemy_control").value!="None"){
 								compressionBypassNeeded=true;
-								stripFMV(niso);
-								deleteUnused(niso);
+								memoryExtensionNeeded=true;
 								randomLog.addLine("Randomizing enemies", "General");
 								randomizeEnemies(niso, randomLog, [//TODO move this data structure
 								null, //alex
@@ -157,6 +162,7 @@
 								removeSpellGates(niso, randomLog);
 								textExtensionNeeded=true;
 								compressionBypassNeeded=true;
+								circleScriptNeeded=true;
 							}
 
 							var asyncs=[];
@@ -173,11 +179,25 @@
 									extendBPE(niso, c);
 								});
 							}
+							
+							if(memoryExtensionNeeded){
+								asyncs.push((c)=>{
+									randomLog.addLine("Extending memory arenas", "General");
+									extendMemorySizes(niso, c);
+								});
+							}
 
 							if(textExtensionNeeded){
 								asyncs.push((c) =>{
 									randomLog.addLine("Merging room text", "General");
 									mergeRoomText(niso, c);
+								});
+							}
+
+							if(circleScriptNeeded){
+								asyncs.push((c) =>{
+									randomLog.addLine("Replacing fn214 with a circle check", "General");
+									examineCirclesFromScripts(niso, c);
 								});
 							}
 

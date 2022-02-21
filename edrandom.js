@@ -279,7 +279,7 @@ function randomizeScriptEnemies(iso, templates, candidates, runeSafe){
 	}
 	regexString=regexString.slice(0, -1);
 
-	regexString+=')';
+	regexString+=')$';
 
 	var search=["GETGLOBAL ed3", /PUSHINT .*/, new RegExp('PUSHINT '+regexString)];
 
@@ -356,14 +356,15 @@ function randomizeMeleeWeapons(iso, log){
 		[1, [0, 1200, 6], "Pious Gladius"],
 		[[0, 13], [1, 6], "Alex Gladius"],
 		[[0, 13], [[0, 2412, 0xad], [0, 2412, 0xbf], [0, 2412, 0xd1]], "Enchanted Gladius"],
-		[2, [0, 1201, 0x9], "Short Sword"],
+		[2, [[0, 1201, 0x9], [2, 0x801d1e7a, 0x801d1e7e, 0x801d1e82]], "Short Sword"],
 		[3, [0, 1939, 0x5a], "Scramasax"],
-		[[3, 7], [0, 1810, 0x36], "Double Edged Sword"],
+		[3, [0, 1810, 0x36], "Anthony Double Edged Sword"],
 		[4, [0, 1203, 0x9], "Tulwar"],
 		//[4, [1, 8], "Karim Torch"],
 		//[6, [0, 1205, 0x30], "Lindsey Torch"],
 		//[7, [1, 13], "Paul Torch"],
 		//[10, [1, 3], "Peter Torch"],
+		[10, [1, 13], "Peter Double Edged Sword"],
 		[4, [1, 2], "Ram Dao"],
 		[5, [1, 11], "Max Sabre"],
 		[9, [1, 22], "Edward Sabre"],
@@ -396,12 +397,20 @@ function randomizeMeleeWeapons(iso, log){
 
 		var source=pool[i][1][0];
 
-		if(source[0]){
-			pool[i][3]=npcs[pool[i][0][0]].buildTemplateFromEntry(2, source[1]);
-		}else{
+		if(source[0]==0){
+
 			var script=findScript(iso, source[1]);
 
 			pool[i][3]=npcs[0].buildTemplateFromScript(script, source[2]);
+		}else if(source[0]==1){
+
+			pool[i][3]=npcs[pool[i][0][0]].buildTemplateFromEntry(2, source[1]);
+		}else{
+			var anim=iso.dol.read2(source[1]);
+			var model=iso.dol.read2(source[2]);
+			var state=iso.dol.read2(source[3]);
+
+			pool[i][3]=npcs[0].buildTemplate(anim, model, state);
 		}
 	}
 
@@ -437,14 +446,18 @@ function randomizeMeleeWeapons(iso, log){
 		}
 
 		for(var loc of dest[1]){
-			if(loc[0]){
-				npcs[dest[0][0]].applyTemplate(2, loc[1], source[3]);
-			}else{
+			if(loc[0]==0){
 				modifyScript(iso, loc[1], (lua)=>{
 					lua.instructions[loc[2]+1]=lua.buildInstruction("PUSHINT", source[3].animations);
 					lua.instructions[loc[2]+2]=lua.buildInstruction("PUSHINT", source[3].model);
 					lua.instructions[loc[2]+4]=lua.buildInstruction("PUSHINT", source[3].state);
 				});
+			}else if(loc[0]==1){
+				npcs[dest[0][0]].applyTemplate(2, loc[1], source[3]);
+			}else if(loc[0]==2){
+				iso.dol.write2(loc[1], source[3].animations);
+				iso.dol.write2(loc[2], source[3].model);
+				iso.dol.write2(loc[3], source[3].state);
 			}
 		}
 
@@ -458,8 +471,6 @@ function randomizeMeleeWeapons(iso, log){
 	}
 
 	iso.getFile("InvU.bin").replace(newInvu);
-
-	extendMemorySizes(iso);
 }
 
 function roomTextShuffle(iso, log){
@@ -876,43 +887,49 @@ function addPeterRuneGate(iso, log){
 
 	var code=[];
 
-/*	if(!threeCircle){
+	if(!threeCircle){
 		if(otherCircle){
 			if(pargon){
 				//all good
 			}else{
 				//check for 3 circle or pargon
 				code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
-				code.push(["PUSHINT", (1 <<16) | (1 << 13)]);
+				code.push(["PUSHINT", (1 << 13)]);//pargon
 				code.push(["CALL", 0, 1]);
-				code.push(["JMPF", ":FAILURE"]);
+				code.push(["JMPT", 5]);
+				code.push(["GETGLOBAL", "fn214"]);
+				code.push(["PUSHINT", 1]);
+				code.push(["CALL", 0, 1]);
+				code.push(["PUSHINT", 0]);
+				code.push(["JMPEQ", ":FAILURE"]);
 			}
 		}else{
 			if(pargon){
 				//check for any circle
-				code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
-				code.push(["PUSHINT", (1 <<16) | (1 << 17) | (1 << 18)]);
+				code.push(["GETGLOBAL", "fn214"]);
+				code.push(["PUSHINT", (1 <<0) | (1 << 1) | (1 << 2)]);//all circles
 				code.push(["CALL", 0, 1]);
-				code.push(["JMPF", ":FAILURE"]);
+				code.push(["PUSHINT", 0]);
+				code.push(["JMPEQ", ":FAILURE"]);
 			}else{
 				//check for 3 circle or other circle+pargon
-				code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
-				code.push(["PUSHINT", (1 << 16)]);
+				code.push(["GETGLOBAL", "fn214"]);
+				code.push(["PUSHINT", (1 << 0)]);//3 circle
 				code.push(["CALL", 0, 1]);
-				code.push(["JMPT", 10]);
+				code.push(["PUSHINT", 0]);
+				code.push(["JMPNE", 9]);
 				code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
-				code.push(["PUSHINT", (1 << 17) | (1 << 13)]);
+				code.push(["PUSHINT", (1 << 13)]);//pargon
 				code.push(["CALL", 0, 1]);
-				code.push(["PUSHINT", (1 << 17) | (1 << 13)]);
-				code.push(["JMPEQ", 5]);
-				code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
-				code.push(["PUSHINT", (1 << 18) | (1 << 13)]);
+				code.push(["JMPF", ":FAILURE"]);
+				code.push(["GETGLOBAL", "fn214"]);
+				code.push(["PUSHINT", (1 << 1) | (1<<2)]);//5&7 circle
 				code.push(["CALL", 0, 1]);
-				code.push(["PUSHINT", (1 << 18) | (1 << 13)]);
-				code.push(["JMPNE", ":FAILURE"]);
+				code.push(["PUSHINT", 0]);
+				code.push(["JMPEQ", ":FAILURE"]);
 			}
 		}
-	}*/
+	}
 
 	if(!alignment){
 		code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
@@ -957,6 +974,17 @@ function addPeterRuneGate(iso, log){
 	//Don't give the flag when you complete roberto
 	modifyScript(iso, 1578, (s)=>{
 		s.instructions[0x33]=s.buildInstruction("POP", 3);
+	});
+}
+
+function examineCirclesFromScripts(iso, continuation=false){
+	//fn214
+	loadAsset("./scriptCircle.bin", (code)=>{
+		iso.dol.overwrite(0x80176eac, code, [0x4, 0x40]);
+
+		if(continuation){
+			continuation();
+		}
 	});
 }
 

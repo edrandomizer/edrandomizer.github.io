@@ -280,6 +280,8 @@ class GPK{
 
 		this.entries=[];
 
+		var seen=[];
+
 		var alignment=1;
 
 		if(aligned){
@@ -320,12 +322,24 @@ class GPK{
 						alignment/=2;
 					}
 				}else{
-					this.entries[i]=buffer.slice(offset, offset+size);
-					if(limit<offset+size){
-						limit=offset+size;
+					var found=false;
+					for(var s of seen){
+						if(s[0]==offset && s[1]==size){
+							this.entries[i]=s[2];
+							found=true;
+							console.log("Overlap detected");
+							break;
+						}
 					}
-					while(offset % alignment!=0){
-						alignment/=2;
+					if(!found){
+						this.entries[i]=buffer.slice(offset, offset+size);
+						seen.push([offset, size, this.entries[i]]);
+						if(limit<offset+size){
+							limit=offset+size;
+						}
+						while(offset % alignment!=0){
+							alignment/=2;
+						}
 					}
 				}
 			}
@@ -359,9 +373,9 @@ class GPK{
 					}
 				}
 			}else if(ent){
-				var sizeIncrease=(asBuf(ent).byteLength+this.alignment-1)&~(this.alignment-1);
+				var size=(size+this.alignment-1)&~(this.alignment-1);
 
-				size+=sizeIncrease;
+				size+=asBuf(ent).byteLength;
 			}
 		}
 		return size;
@@ -998,15 +1012,15 @@ function bigLevel(iso, models=null){
 				if(!common.entries[i]){
 					common.entries[i]=lvl[0].entries[i];
 				}
-			//	lvl[0].entries[i]=null;
+				lvl[0].entries[i]=null;
 			}
 		}
 	}
 
-	/*for(var lvl of levels){
+	for(var lvl of levels){
 		lvl[1].entries[0]=lvl[0];
 		iso.getFile("Level"+("00"+lvl[2]).slice(-2)+".bin").replace(lvl[1]);
-	}*/
+	}
 
 
 	//npccom.gpk
@@ -1022,29 +1036,30 @@ function bigLevel(iso, models=null){
 
 	iso.getFile("NPCCom.gpk").replace(common);
 
-	extendMemorySizes(iso);
-
 }
 
-function extendMemorySizes(iso){
+function extendMemorySizes(iso, continuation){
 
 	//main arena
-	iso.dol.write2(0x801380ee, 0x50);
-	iso.dol.write2(0x80138cf6, 0x50);
-	iso.dol.write2(0x80138be2, 0x50);
-	iso.dol.write2(0x80138bf6, 0x50);
-	iso.dol.write2(0x80138c1a, 0x50);
-	iso.dol.write2(0x80138ace, 0x50);
+	iso.dol.write2(0x801380ee, 0x100);
+	iso.dol.write2(0x80138cf6, 0x100);
+	iso.dol.write2(0x80138be2, 0x100);
+	iso.dol.write2(0x80138bf6, 0x100);
+	iso.dol.write2(0x80138c1a, 0x100);
+	iso.dol.write2(0x80138ace, 0x100);
 
-	iso.dol.write2(0x8015885e, 0x50);
-	iso.dol.write2(0x801f2fba, 0x50);
-	iso.dol.write2(0x801f3042, 0x50);
+	//
+	//iso.dol.write2(0x80139c2a, 0x3710);
 
-	iso.dol.write2(0x80138e5a, 0x50);
-	iso.dol.write2(0x801398fa, 0x50);
+	//iso.dol.write2(0x8015885e, 0x50);
+	//iso.dol.write2(0x801f2fba, 0x50);
+	//iso.dol.write2(0x801f3042, 0x50);
 
-	iso.dol.write2(0x8015aa16, 0x50);
-	iso.dol.write2(0x8015a5fa, 0x50);
+	//iso.dol.write2(0x80138e5a, 0x50);
+	//iso.dol.write2(0x801398fa, 0x50);
+
+	//iso.dol.write2(0x8015aa16, 0x50);
+	//iso.dol.write2(0x8015a5fa, 0x50);
 
 	//reset
 	iso.dol.write2(0x800248fe, 0x5770);
@@ -1053,6 +1068,16 @@ function extendMemorySizes(iso){
 	//ai
 	iso.dol.write2(0x80024ae2, 0x40);
 	iso.dol.write2(0x80024a76, 0x40);
+
+	loadAsset("./loadingMemory.bin", (code)=>{
+		iso.dol.overwrite(0x80139c1c, code, [0x2c]);
+		loadAsset("./loadingAllocate.bin", (code)=>{
+			iso.dol.inject(0x80024b18, code, [0x4]);
+			if(continuation){
+				continuation();
+			}
+		});
+	});
 }
 
 function addMemoryDebugging(iso, continuation){
@@ -1097,7 +1122,7 @@ function mergeScriptArchives(iso){
 	}
 
 	//disable async loading of scripts
-	iso.dol.write2(0x8004292c, 0x4800);
+	iso.dol.write4(0x8004292c, 0x48000034);
 	iso.dol.write4(0x80043edc, 0x60000000);
 
 }

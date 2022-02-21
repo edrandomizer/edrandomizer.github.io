@@ -240,6 +240,22 @@ class DOL {
 
 	}
 
+	overwrite(addr, code, relocations=[]){
+		code=asBuf(code);
+
+		var nd=new DataView(code);
+
+		var section=this.getSection(addr, code.byteLength);
+
+		for(var reloc of relocations){
+			var current=nd.getUint32(reloc, false);
+			var inst=this.calculateRelocation(current, addr+reloc);
+			nd.setUint32(reloc, inst, false);
+		}
+
+		new Uint8Array(section.buffer).set(new Uint8Array(code), addr-section.addr);
+	}
+
 	getSize(){
 		var size=0x100;
 		for(var section of this.sections){

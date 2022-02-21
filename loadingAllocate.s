@@ -1,0 +1,4 @@
+lis %r3, 0x2
+bl 0x1fea8c
+lis %r4, -0x7fa5
+stw %r3, -0x186c(%r4)
