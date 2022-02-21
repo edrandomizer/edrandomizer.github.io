@@ -268,6 +268,7 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 function preventEnemyRandomizationSoftlocks(iso){
 	modifyScript(iso, 1920, (s)=>{s.addFlagSet([[0x80725E70, 2]]);});
 	modifyScript(iso, 2206, (s)=>{ s.instructions[0x129]=s.buildInstruction("POP", 3); s.instructions[0x13f]=s.buildInstruction("POP", 3); });
+	
 }
 
 function randomizeScriptEnemies(iso, templates, candidates, runeSafe){
@@ -347,6 +348,9 @@ function randomizeScriptEnemies(iso, templates, candidates, runeSafe){
 }
 
 function randomizeMeleeWeapons(iso, log){
+
+	//Make pious vulnerable to all weapons
+	iso.dol.write4(0x800a9194, 0x60000000);
 
 	log.addType("item_change", (d) => {
 		return `${d.originalName} -> ${d.newName}`;
@@ -455,9 +459,15 @@ function randomizeMeleeWeapons(iso, log){
 			}else if(loc[0]==1){
 				npcs[dest[0][0]].applyTemplate(2, loc[1], source[3]);
 			}else if(loc[0]==2){
-				iso.dol.write2(loc[1], source[3].animations);
-				iso.dol.write2(loc[2], source[3].model);
-				iso.dol.write2(loc[3], source[3].state);
+				if(loc[1]){
+					iso.dol.write2(loc[1], source[3].animations);
+				}
+				if(loc[2]){
+					iso.dol.write2(loc[2], source[3].model);
+				}
+				if(loc[3]){
+					iso.dol.write2(loc[3], source[3].state);
+				}
 			}
 		}
 
@@ -471,6 +481,7 @@ function randomizeMeleeWeapons(iso, log){
 	}
 
 	iso.getFile("InvU.bin").replace(newInvu);
+
 }
 
 function roomTextShuffle(iso, log){
