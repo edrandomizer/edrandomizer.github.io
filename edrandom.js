@@ -135,7 +135,7 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 	var edward=new NPC(iso.fst.getFile("Npcs9.npc"));
 
 	var templates=[
-		[pious.buildTemplateFromEntry(0, 0), "Mantarok Zombie"],
+		[pious.buildTemplateFromEntry(0, 0), "Mantorok Zombie"],
 		[lindsey.buildTemplateFromEntry(0, 0xe), "Xel'lotath Zombie"],
 		[lindsey.buildTemplateFromEntry(0, 0x14), "Ulyaoth Zombie"],
 		[lindsey.buildTemplateFromEntry(0, 9), "Chattur'gha Zombie"],
@@ -268,7 +268,7 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 function preventEnemyRandomizationSoftlocks(iso){
 	modifyScript(iso, 1920, (s)=>{s.addFlagSet([[0x80725E70, 2]]);});
 	modifyScript(iso, 2206, (s)=>{ s.instructions[0x129]=s.buildInstruction("POP", 3); s.instructions[0x13f]=s.buildInstruction("POP", 3); });
-	
+
 }
 
 function randomizeScriptEnemies(iso, templates, candidates, runeSafe){
@@ -592,7 +592,7 @@ function randomizeRunes(iso, log){
 		"Chattur'gha",
 		"Ulyaoth",
 		"Xel'lotath",
-		"Mantarok",
+		"Mantorok",
 		"Bankorok",
 		"Tier",
 		"Narokath",
@@ -627,20 +627,20 @@ function randomizeRunes(iso, log){
 	];
 
 	var codexNames=[
-		"Antorbok Codex",  //0xf2
-		"Aretak Codex",
-		"Bankorok Codex",
-		"Chattur'gha Codex",
-		"Magormor Codex",
-		"Mantarok Codex",
-		"Narokath Codex",
-		"Nethlek Codex",
-		"Pargon Codex",
-		"Redgormor Codex",
-		"Santak Codex",
-		"Tier Codex",
-		"Ulyaoth Codex",
-		"Xel'lotath Codex"
+		"Antorbok Codex",   //0xf2
+		"Aretak Codex",     //0xf3
+		"Bankorok Codex",   //0xf4
+		"Chattur'gha Codex",//0xf5
+		"Magormor Codex",   //0xf6
+		"Mantorok Codex",   //0xf7
+		"Narokath Codex",   //0xf8
+		"Nethlek Codex",    //0xf9
+		"Pargon Codex",     //0xfa
+		"Redgormor Codex",  //0xfb
+		"Santak Codex",     //0xfc
+		"Tier Codex",       //0xfd
+		"Ulyaoth Codex",    //0xfe
+		"Xel'lotath Codex"  //0xff
 	];
 
 	const getRollName=(roll)=>{
@@ -746,14 +746,13 @@ function randomizeRunes(iso, log){
 	};
 
 	var code=[];
-	var mIndex=0;
 
 	for(var model of codexModels){
 		var roll=rand[i++];
 		addRollCode(code, model, roll);
 
-		log.addLine({"originalName": getRollName([2, 255-mIndex]), "newName": getRollName(roll), "original": [2, 255-mIndex], "new":roll}, "Runes", "magic_pickup_change");
-		mIndex++;
+		log.addLine({"originalName": getRollName([2, model]), "newName": getRollName(roll), "original": [2, model], "new":roll}, "Runes", "magic_pickup_change");
+
 	}
 
 	modifyScript(iso, 1985, (s)=>{
@@ -988,6 +987,42 @@ function addPeterRuneGate(iso, log){
 	});
 }
 
+function buildRuneGate(runes){
+
+	if(runes==0){
+		return [];
+	}
+
+	var code=[];
+
+	if(runes & 0x70000){
+		code.push(["GETGLOBAL", "fn214"]);
+		code.push(["PUSHINT", (runes & 0x70000)>>16]);
+		code.push(["CALL", 0, 1]);
+		code.push(["PUSHINT", (runes & 0x70000)>>16]);
+		code.push(["JMPNE", ":FAILURE"]);
+	}
+
+	if(runes & 0x3FFF){
+		code.push(["GETGLOBAL", "BKDoesPlayerHaveRune"]);
+		code.push(["PUSHINT", runes & 0x3fff]);
+		code.push(["CALL", 0, 1]);
+		code.push(["PUSHINT", runes & 0x3fff]);
+		code.push(["JMPNE", ":FAILURE"]);
+	}
+
+	code.push(["JMP", 1]);
+	code.push(["END"]);
+
+	for(var i in code){
+		if(code[i][1]===":FAILURE"){
+			code[i][1]=code.length-i-2;
+		}
+	}
+
+	return code;
+}
+
 function examineCirclesFromScripts(iso, continuation=false){
 	//fn214
 	loadAsset("./scriptCircle.bin", (code)=>{
@@ -999,9 +1034,142 @@ function examineCirclesFromScripts(iso, continuation=false){
 	});
 }
 
+function addChapterEndRuneGates(iso, log){
+
+
+	var align=-1;
+
+	for(var line of log.log["General"]){
+		if(line[0]!="forced_alignment"){
+			continue;
+		}
+		align=line[1].alignment-1;
+		break;
+	}
+
+	if(align===-1){
+		throw "Cannot add rune gates without forcing alignment";
+	}
+
+	var required=[
+		"Chattur'gha",
+		"Ulyaoth",
+		"Xel'lotath",
+		"Mantorok",
+		"Bankorok",
+		"Tier",
+		"Narokath",
+		"Nethlek",
+		"Antorbok",
+		"Magormor",
+		"Redgormor",
+		"Aretak",
+		"Santak",
+		"Pargon",
+		"EMPTY",
+		"EMPTY",
+		"3 Circle",
+		"5 Circle",
+		"7 Circle"
+	];
+
+	var gateScripts=[
+		null,
+		null,
+		null,
+		1147,//anothony
+		1381,//karim
+		1155,//max
+		906,//lindsey
+		1234,//paul
+		244,//roberto
+		1045,//edward
+		1235,//peter
+		1183,//michael
+	];
+
+
+	var mappings=[
+	];
+
+
+	for(var line of log.log["Runes"]){
+		if(line[0]!="magic_pickup_change"){
+			continue;
+		}
+
+		if(required.indexOf(line[1].newName)!==-1){
+			mappings.push([line[1].originalName, line[1].newName]);
+		}
+	}
+
+	var pickups=getMagicPickups();
+
+	for(var chapter in pickups){
+		if(!pickups[chapter] || pickups[chapter].length==0){
+			continue;
+		}
+
+		var requirement=0;
+
+		for(var pickup of pickups[chapter]){
+
+			if(Array.isArray(pickup)){
+				pickup=pickup[align];
+			}
+
+			for(var check of mappings){
+				if(check[0]==pickup){
+					requirement=requirement | getRuneNumber(check[1]);
+				}
+			}
+		}
+
+		if(requirement==0){
+			continue;
+		}
+
+		var gate=buildRuneGate(requirement);
+
+		if(!gateScripts[chapter]){
+			continue;
+		}
+
+		modifyScript(iso, gateScripts[chapter], (s)=>{
+			s.prepend(gate);
+		});
+	}
+}
+
 function removeSpellGates(iso, log){
 
+	var randomAlignment=Math.floor(Math.random()*3)+1;
+
+	var alignmentNames=[null, "Chattur'gha", "Ulyaoth", "Xel'lotath"];
+
+	log.addType("forced_alignment", (d)=>{ return `Forced Alignment: ${d.name}`;});
+
+	log.addLine({"name":alignmentNames[randomAlignment], alignment: randomAlignment}, "General", "forced_alignment");
+
+	modifyScript(iso, 1920, (s)=> {s.prepend([["GETGLOBAL", "ed15"], ["PUSHINT", 1], ["PUSHINT", randomAlignment], ["CALL", 0, 0]]);});//Randomly assign an alignment at the beginning of the game
+
+	claimArtifact=findScript(iso, 655);
+	claimArtifact.instructions[0x8d]=claimArtifact.buildInstruction("PUSHINT", randomAlignment);
+	replaceScript(iso, 655, claimArtifact);
+
+
+	//remove sanity drain on chapter end
+	modifyScript(iso, 1892, (s)=>{
+		s.instructions[0x2f]=s.buildInstruction("PUSHINT", 125);
+	});
+
 	addPeterRuneGate(iso, log);
+
+	//enable casting for ellia and pious
+	iso.dol.write2(0x8011192e, 0x1);
+	iso.dol.write2(0x80111936, 0x1);
+	iso.dol.write2(0x80006a86, 0xfe);
+	iso.dol.write2(0x80006a8e, 0xfe);
 
 	//Unset a flag right before lindsey's damage field creation, prevents the field from being created
 	modifyScript(iso, 1621, (s)=> {s.prepend([["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E63, 5)], ["PUSHINT", 0], ["CALL", 0, 0]]);});
@@ -1018,18 +1186,6 @@ function removeSpellGates(iso, log){
 	//iso.getFile("Npcs5.npc").replace(lindseyNpcs);
 
 	modifyScript(iso, 788, (s)=>{s.prepend([["GETGLOBAL", "fn73"], ["PUSHINT", 1098], ["CALL", 0, 0]]);});//run the window dispel script at the top of the paul page examine script
-
-	var randomAlignment=Math.floor(Math.random()*3)+1;
-
-	var alignmentNames=[null, "Chattur'gha", "Ulyaoth", "Xel'lotath"];
-
-	log.addLine("Forced Alignment: "+alignmentNames[randomAlignment], "General");
-
-	modifyScript(iso, 1920, (s)=> {s.prepend([["GETGLOBAL", "ed15"], ["PUSHINT", 1], ["PUSHINT", randomAlignment], ["CALL", 0, 0]]);});//Randomly assign an alignment at the beginning of the game
-
-	claimArtifact=findScript(iso, 655);
-	claimArtifact.instructions[0x8d]=claimArtifact.buildInstruction("PUSHINT", randomAlignment);
-	replaceScript(iso, 655, claimArtifact);
 
 	clockExamine=findScript(iso, 1551);
 	replaceScript(iso, 2440, clockExamine);//Replace the clock door script with the clock examine script
@@ -1057,6 +1213,8 @@ function removeSpellGates(iso, log){
 	modifyScript(iso, 526, (s)=> {s.prepend([["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E71, 7)], ["PUSHINT", 0], ["CALL", 0, 0]]);});
 
 	fixRuneSpireCrashes(iso);
+
+	addChapterEndRuneGates(iso, log);
 
 	modifyScript(iso, 1920, (s)=> {s.addFlagSet([[0x80725E79, 6], //Pious Health Tutorial
 												[0x80725E7E, 5], //Ellia Sanity Tutorial
@@ -1090,6 +1248,7 @@ function removeSpellGates(iso, log){
 												//[0x80725E46 , 5], //Unlocks binding hall door
 
 												//Roberto:
+												[0x80725E5C, 0],//Skips gatekeeper cutscene due to crashes
 												//[0x80725E2C, 6], //smasher ladder b-prompt (to avoid summon zombie)
 												//[0x80725E8E, 2], //removes invisible wall in order to get the key
 

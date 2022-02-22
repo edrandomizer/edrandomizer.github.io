@@ -1260,6 +1260,64 @@ function getMainModelForLevel(level){
 	return levelModels[level];
 }
 
+function getMagicPickups(){
+
+	return [
+		[],//alex
+		[],//pious
+		[],//ellia
+		["3 Circle", ["Xel'lotath", "Chattur'gha", "Ulyaoth"], ["Xel'lotath Codex", "Chattur'gha Codex", "Ulyaoth Codex"],
+		 "Antorbok", "Antorbok Codex", "Magormor", "Magormor Codex", "Enchant Item"],//anthony
+		["Santak", "Santak Codex", ["Chattur'gha", "Ulyaoth", "Xel'lotath"], ["Chattur'gha Codex", "Ulyaoth Codex", "Xel'lotath Codex"], "Narokath", "Narokath Codex", "Recover"],//karim
+		["Redgormor", "Redgormor Codex", ["Ulyaoth", "Xel'lotath", "Chattur'gha"], ["Ulyaoth Codex", "Xel'lotath Codex", "Chattur'gha Codex"], "Reveal Invisible",
+		 "Bankorok", "Bankorok Codex", "Damage Field"],//Max
+		["Tier", "Tier Codex", "Nethlek", "Nethlek Codex", "Dispel Magic", "Mantorok", "Mantorok Codex", "Summon Trapper", "Aretak", "Aretak Codex"],//Lindsey
+		["Shield", "Pargon", "Pargon Codex", "5 Circle"],//Paul
+		["Summon Zombie"],//Roberto
+		["Magick Pool", "Summon Horror"],//edward
+		["7 Circle", "Magickal Attack"],//peter
+		["Bind"],//Michael
+	];
+}
+
+function getRuneNumber(rune){
+	var runes=[
+		"Chattur'gha",
+		"Ulyaoth",
+		"Xel'lotath",
+		"Mantorok",
+		"Bankorok",
+		"Tier",
+		"Narokath",
+		"Nethlek",
+		"Antorbok",
+		"Magormor",
+		"Redgormor",
+		"Aretak",
+		"Santak",
+		"Pargon",
+		"EMPTY",
+		"EMPTY",
+		"3 Circle",
+		"5 Circle",
+		"7 Circle"
+	];
+
+	if(runes.indexOf(rune)===-1){
+		return 0;
+	}
+
+	return 1 << runes.indexOf(rune);
+}
+
+function getAlignmentInfo(){
+	return [
+		["Chattur'gha", "Ulyaoth", "Xel'lotath"],
+		["Ulyaoth", "Xel'lotath", "Chattur'gha"],
+		["Xel'lotath", "Chattur'gha", "Ulyaoth"],
+	];
+}
+
 function decompressAll(dir){
 	for(var entry of dir.entries){
 		if(entry.type=="dir"){
