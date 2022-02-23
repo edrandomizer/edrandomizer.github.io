@@ -168,10 +168,10 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 
 	if(experimental){
 		bigLevel(iso, candidates);
-		candidates=candidates.slice(0, 13);//Workaround for trapper based crashes
+		candidates=candidates.slice(0, 16);//Workaround for trapper based crashes
 	}else{
 		candidates=candidates.slice(0, 7);//Workaround for trapper based crashes
-		templates.splice(7, 6);
+		templates.splice(7, 9);
 	}
 
 
@@ -351,6 +351,7 @@ function randomizeMeleeWeapons(iso, log){
 
 	//Make pious vulnerable to all weapons
 	iso.dol.write4(0x800a9194, 0x60000000);
+	iso.dol.write4(0x800ab1c4, 0x60000000);
 
 	log.addType("item_change", (d) => {
 		return `${d.originalName} -> ${d.newName}`;
@@ -1141,6 +1142,30 @@ function addChapterEndRuneGates(iso, log){
 	}
 }
 
+function copyAlexItemsToPiousFight(iso){
+	var alex=new GPK(decompressSKASC(iso.getFile("Level00.bin")), true);
+	var pious=new GPK(decompressSKASC(iso.getFile("Level13.bin")), true);
+
+	var alexInv=new GPK(alex.entries[2], true);
+	var piousInv=new GPK(pious.entries[2], true);
+
+	var alexModels=new GPK(alex.entries[1], true);
+	var piousModels=new GPK(pious.entries[1], true);
+
+	for(var i in alexInv.entries){
+		if(!alexInv.entries[i] || piousInv.entries[i]){
+			continue;
+		}
+		piousInv.entries[i]=alexInv.entries[i];
+		piousModels.entries[i]=alexModels.entries[i];
+	}
+
+	pious.entries[2]=piousInv;
+	pious.entries[1]=piousModels;
+
+	iso.getFile("Level13.bin").replace(pious);
+}
+
 function removeSpellGates(iso, log){
 
 	var randomAlignment=Math.floor(Math.random()*3)+1;
@@ -1215,6 +1240,8 @@ function removeSpellGates(iso, log){
 	fixRuneSpireCrashes(iso);
 
 	addChapterEndRuneGates(iso, log);
+
+	copyAlexItemsToPiousFight(iso);
 
 	modifyScript(iso, 1920, (s)=> {s.addFlagSet([[0x80725E79, 6], //Pious Health Tutorial
 												[0x80725E7E, 5], //Ellia Sanity Tutorial

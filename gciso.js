@@ -597,21 +597,24 @@ class Header{
 			throw("Bad magic number");
 		}
 
+		this.dolOffset=raw.getUint32(0x420, false);
+
 		this.apploaderSize=raw.getUint32(0x2440+0x14, false);
 
-		this.buffer=buffer.slice(0, 0x2440+this.apploaderSize);
+		this.buffer=buffer.slice(0, this.dolOffset);
 		this.data=new DataView(this.buffer);
-		this.dolOffset=this.data.getUint32(0x420, false);
 		this.fstOffset=this.data.getUint32(0x424, false);
 		this.fstSize=this.data.getUint32(0x428, false);
 	}
 
 	rebuild(iso){
 
-		this.dolOffset=this.buffer.byteLength;
+		//this.dolOffset=this.buffer.byteLength;
 		this.data.setUint32(0x420, this.dolOffset, false);
 
 		this.fstOffset=this.dolOffset+iso.dol.getSize();
+		this.fstOffset=(this.fstOffset+(0xFF))&~0xFF;
+
 		this.data.setUint32(0x424, this.fstOffset, false);
 
 		this.fstSize=iso.fst.getSize();
@@ -652,9 +655,9 @@ class GCISO {
 		var ret=new ArrayBuffer(this.imageSize);
 		this.header.rebuild(this);
 		var c=this.header.writeToBuffer(ret, 0);
-		c=this.dol.writeToBuffer(ret, c);
+		c=this.dol.writeToBuffer(ret, this.header.dolOffset);
 
-		c=this.fst.writeToBuffer(ret, c);
+		c=this.fst.writeToBuffer(ret, this.header.fstOffset);
 		console.log("Free space: "+(this.imageSize-c));
 		return ret;
 	}
