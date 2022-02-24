@@ -1068,6 +1068,8 @@ function extendMemorySizes(iso, continuation){
 	//ai
 	iso.dol.write2(0x80024ae2, 0x40);
 	iso.dol.write2(0x80024a76, 0x40);
+	
+	iso.dol.write4(0x80037500,  0x549f1b78);
 
 	loadAsset("./loadingMemory.bin", (code)=>{
 		iso.dol.overwrite(0x80139c1c, code, [0x2c]);
