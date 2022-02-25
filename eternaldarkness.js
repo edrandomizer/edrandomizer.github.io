@@ -173,7 +173,7 @@ class NPC{
 		}
 		animations=animations[1];
 
-		var state=script.parseInstruction(script.instructions[offset+ (type==-1 ? 8 : 4)]);
+		var state=script.parseInstruction(script.instructions[offset+ ((type==-1 || type==1) ? 8 : 4)]);
 		if(!(state=/PUSHINT (.*)/.exec(state))){
 			throw "Non-standard state set";
 		}
@@ -1068,7 +1068,7 @@ function extendMemorySizes(iso, continuation){
 	//ai
 	iso.dol.write2(0x80024ae2, 0x40);
 	iso.dol.write2(0x80024a76, 0x40);
-	
+
 	iso.dol.write4(0x80037500,  0x549f1b78);
 
 	loadAsset("./loadingMemory.bin", (code)=>{
@@ -1154,6 +1154,15 @@ function mergeRoomText(iso, continuation=false){
 
 	loadAsset("./textMemory.bin", (code)=>{
 		iso.dol.inject(0x80024b20, code, [0x8]);
+		if(continuation){
+			continuation();
+		}
+	});
+}
+
+function fixFloatingItems(iso, continuation=false){
+	loadAsset("./floatingItems.bin", (code)=>{
+		iso.dol.inject(0x800e0874, code, [0xc, 0x28]);
 		if(continuation){
 			continuation();
 		}

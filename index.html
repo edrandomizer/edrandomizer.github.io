@@ -2,7 +2,7 @@
 <html>
 
 <head>
-    <title>Eternal Darkness: Sanity's Redemption</title>
+    <title>Eternal Darkness Randomizer</title>
     <meta charset="utf-8">
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0">
@@ -80,6 +80,7 @@
 		var textExtensionNeeded=false;
 		var circleScriptNeeded=false;
 		var memoryExtensionNeeded=false;
+		var floatingItemsNeeded=false;
 
 		input.addEventListener('change', () => {
 			let files = input.files;
@@ -134,6 +135,7 @@
 							if(document.getElementById("enemy_control").value!="None"){
 								compressionBypassNeeded=true;
 								memoryExtensionNeeded=true;
+								floatingItemsNeeded=true;
 								randomLog.addLine("Randomizing enemies", "General");
 								randomizeEnemies(niso, randomLog, [//TODO move this data structure
 								null, //alex
@@ -200,6 +202,12 @@
 									examineCirclesFromScripts(niso, c);
 								});
 							}
+							
+							if(floatingItemsNeeded){
+								asyncs.push((c)=>{
+									fixFloatingItems(niso, c);
+								});
+							}
 
 							if(debugMode){
 								asyncs.push((c) => {
@@ -219,6 +227,7 @@
 									c();
 								}, 1);
 							});
+							
 
 							const runAsync= (asyncs) => {
 								if(asyncs.length==0){

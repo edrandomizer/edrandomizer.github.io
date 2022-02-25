@@ -1152,11 +1152,14 @@ function copyAlexItemsToPiousFight(iso){
 	var alexModels=new GPK(alex.entries[1], true);
 	var piousModels=new GPK(pious.entries[1], true);
 
-	for(var i in alexInv.entries){
-		if(!alexInv.entries[i] || piousInv.entries[i]){
+	for(var i in alexModels.entries){
+		if(!alexModels.entries[i] || (piousInv.entries[i] && piousModels.entries[i])){
 			continue;
 		}
-		piousInv.entries[i]=alexInv.entries[i];
+		
+		if(alexInv.entries[i]){
+			piousInv.entries[i]=alexInv.entries[i];
+		}
 		piousModels.entries[i]=alexModels.entries[i];
 	}
 
@@ -1234,6 +1237,16 @@ function removeSpellGates(iso, log){
 	michaelBomb.instructions[0x3d]=michaelBomb.buildInstruction("POP", 2);
 	replaceScript(iso, 1883, michaelBomb);
 
+	//remove the weapon lock for alex
+	var alexNpc=new NPC(iso.getFile("Npcs0.npc"));
+	alexNpc.entries[1].splice(30, 4);
+	iso.getFile("Npcs0.npc").replace(alexNpc);
+
+	//remove the weapon lock for karim
+	var karimNpc=new NPC(iso.getFile("Npcs4.npc"));
+	karimNpc.entries[1].splice(28, 3);
+	iso.getFile("Npcs4.npc").replace(karimNpc);
+
 	//Disable michael bind barrier when entering the room
 	modifyScript(iso, 526, (s)=> {s.prepend([["GETGLOBAL", "fn29"], ["PUSHINT", bitAddressToFlag(0x80725E71, 7)], ["PUSHINT", 0], ["CALL", 0, 0]]);});
 
@@ -1276,6 +1289,7 @@ function removeSpellGates(iso, log){
 
 												//Roberto:
 												[0x80725E5C, 0],//Skips gatekeeper cutscene due to crashes
+												[0x80725E3D, 3],//Skips smasher cutscene
 												//[0x80725E2C, 6], //smasher ladder b-prompt (to avoid summon zombie)
 												//[0x80725E8E, 2], //removes invisible wall in order to get the key
 
