@@ -8,4 +8,4 @@ Guides for advanced usage can be found under docs/guides. It's advised you start
 
 # Limitations
 
-The compression bypass, currently used only by the room text randomization, will not work if the randomizer is accessed locally. This means if you clone your own copy you will need to set up a webserver or disable text randomization.
+The asset loading will not work if the randomizer is accessed locally. This means if you clone your own copy you will need to set up a webserver.
