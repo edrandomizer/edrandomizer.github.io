@@ -118,7 +118,7 @@ function shuffle(arr) {
 	}
 }
 
-function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=true){
+function randomizeEnemies(iso, log, noTrapperList=[], skipList=[]){
 
 	preventEnemyRandomizationSoftlocks(iso);
 
@@ -128,11 +128,11 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 		return `Level: ${d.level} Room: ${d.room} ${d.originalName} ${d.fromStatic ? "" : "*"} -> ${d.newName}`;
 	});
 
-	var pious=new NPC(iso.fst.getFile("Npcs1.npc"));
-	var lindsey=new NPC(iso.fst.getFile("Npcs6.npc"));
-	var karim=new NPC(iso.fst.getFile("Npcs4.npc"));
-	var paul=new NPC(iso.fst.getFile("Npcs7.npc"));
-	var edward=new NPC(iso.fst.getFile("Npcs9.npc"));
+	var pious=iso.fst.getFile("Npcs1.npc").asParsed();
+	var lindsey=iso.fst.getFile("Npcs6.npc").asParsed();
+	var karim=iso.fst.getFile("Npcs4.npc").asParsed();
+	var paul=iso.fst.getFile("Npcs7.npc").asParsed();
+	var edward=iso.fst.getFile("Npcs9.npc").asParsed();
 
 	var templates=[
 		[pious.buildTemplateFromEntry(0, 0), "Mantorok Zombie"],
@@ -166,13 +166,8 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 		candidates.push(temp[0].model);
 	}
 
-	if(experimental){
-		bigLevel(iso, candidates);
-		candidates=candidates.slice(0, 16);//Workaround for trapper based crashes
-	}else{
-		candidates=candidates.slice(0, 7);//Workaround for trapper based crashes
-		templates.splice(7, 9);
-	}
+	bigLevel(iso, candidates);
+	candidates=candidates.slice(0, 16);//Workaround for trapper based crashes
 
 
 	var i=0;
@@ -181,9 +176,7 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 			i++;
 			continue;
 		}
-		var file=iso.fst.getFile("Npcs"+i+".npc");
-
-		var npcs=new NPC(file);
+		var npcs=iso.fst.getFile("Npcs"+i+".npc").asParsed();
 
 		var c=npcs.entries[0].length;
 
@@ -256,7 +249,7 @@ function randomizeEnemies(iso, log, noTrapperList=[], skipList=[], experimental=
 			j++;
 		}
 
-		file.replace(npcs.toBuffer());
+		//file.replace(npcs.toBuffer());
 
 		i++;
 	}
@@ -379,8 +372,8 @@ function randomizeMeleeWeapons(iso, log){
 		[11, [0, 1210, 0x9], "Fire Axe"],
 	];
 
-	var invu=new GPK(iso.getFile("InvU.bin"));
-	var newInvu=new GPK(iso.getFile("InvU.bin"));
+	var invu=new GPK(iso.getFile("InvU.bin").toBuffer());
+	var newInvu=iso.getFile("InvU.bin").asParsed();
 
 	var npcs=[];
 
@@ -389,7 +382,7 @@ function randomizeMeleeWeapons(iso, log){
 			continue;
 		}
 
-		npcs[i]=new NPC(iso.getFile("Npcs"+i+".npc"));
+		npcs[i]=iso.getFile("Npcs"+i+".npc").asParsed();
 	}
 
 	for(var i in pool){
@@ -474,15 +467,6 @@ function randomizeMeleeWeapons(iso, log){
 
 	}
 
-	for(var i in npcs){
-		if(i==12){
-			continue;
-		}
-		iso.getFile("Npcs"+i+".npc").replace(npcs[i]);
-	}
-
-	iso.getFile("InvU.bin").replace(newInvu);
-
 }
 
 function roomTextShuffle(iso, log){
@@ -532,6 +516,7 @@ function roomTextShuffle(iso, log){
 		}
 		i++;
 	}
+	
 
 	for(var special in pools){
 		var pc=pools[special].slice(0);
@@ -567,178 +552,76 @@ function roomTextShuffle(iso, log){
 }
 
 function randomizeRunes(iso, log){
-
 	log.addType("magic_pickup_change", (d)=>{ return `${d.originalName} -> ${d.newName}`;});
 
-	var runeScripts=[[1367, 0, 0, 7], //128
-					 [1363, 24, 5, 3], //8
-					 [1360, 4, 0, 0], //1
-					 [1361, 4, 0, 1], //2
-					 [1362, 4, 0, 2], //4
-					 [1366, 0, 0, 6], //64
-					 [1372, 0, 0, 12], //4096
-					 [1371, 0, 0, 11], //2048
-					 [1364, 0, 0, 4], //16
-					 [1369, 0, 0, 9], //512
-					 [1373, 0, 0, 13], //8192
-					 [1365, 0, 0, 5], //32
-					 [1370, 0, 0, 10], //1024
-					 [1368, 0, 0, 8],//256
-					 [2129, 0xe3, 5, 16],//65536
-					 [1375, 0, 0, 17], //131072
-					 [[1376, 0, 0, 18], [2692, 0xb8, 1, 18]], //262144, I think the first is unsed but it's here for completeness
-					 ];
-
-	var runeNames=[
-		"Chattur'gha",
-		"Ulyaoth",
-		"Xel'lotath",
-		"Mantorok",
-		"Bankorok",
-		"Tier",
-		"Narokath",
-		"Nethlek",
-		"Antorbok",
-		"Magormor",
-		"Redgormor",
-		"Aretak",
-		"Santak",
-		"Pargon",
-		null,
-		null,
-		"3 Circle",
-		"5 Circle",
-		"7 Circle"
+	var pool=[
+		{"name":"Chattur'gha", "model":18, "pickuptype":"rune", "type": "script", "script": 1429, "offset": 0x86, "level":[3, 4, 5], "item":47, "pickupScript":[1360, 4, 0, 0], "pickupIndex": 0 },
+		{"name":"Ulyaoth", "model": 20, "pickuptype":"rune", "type": "script", "script": 1429, "offset": 0x95, "level":[3, 4, 5], "item":56, "pickupScript": [1361, 4, 0, 1], "pickupIndex": 1},
+		{"name":"Xel'lotath", "model": 19, "pickuptype":"rune", "type":"script", "script": 1429, "offset": 0x74, "level":[3, 4, 5], "item":57, "pickupScript": [1362, 4, 0, 2], "pickupIndex": 2 },
+		{"name":"Mantorok", "model": 21, "pickuptype":"rune", "type":"npc", "npc": 6, "offset":13, "level":6, "item":49, "pickupScript":[1363, 24, 5, 3], "pickupIndex": 3 },
+		{"name":"Bankorok", "model": 17, "pickuptype":"rune", "type":"script", "script": 2496, "offset": 48, "level": 5, "item":46, "pickupScript": [1364, 0, 0, 4], "pickupIndex": 4},
+		{"name":"Tier", "model": 16, "pickuptype":"rune", "type":"script", "script": 2490, "offset": 46, "level":6, "item":55, "pickupScript": [1365, 0, 0, 5], "pickupIndex": 5 },
+		{"name":"Narokath", "model": 15, "pickuptype":"rune", "type":"script", "script": 2709, "offset": 6, "level":4, "item":50, "pickupScript": [1366, 0, 0, 6], "pickupIndex": 6},
+		{"name":"Nethlek", "model": 14, "pickuptype":"rune", "type":"script", "script": 1830, "offset": 46, "level":6, "item":51, "pickupScript": [1367, 0, 0, 7], "pickupIndex": 7 },
+		{"name":"Antorbok", "model": 13, "pickuptype":"rune", "type":"script", "script": 1826, "offset": 46, "level":3, "item":44, "pickupScript": [1368, 0, 0, 8], "pickupIndex": 8},
+		{"name":"Magormor", "model": 22, "pickuptype":"rune", "type":"script", "script": 1824, "offset": 46, "level":3, "item":48, "pickupScript": [1369, 0, 0, 9], "pickupIndex": 9},
+		{"name":"Redgormor", "model": 23, "pickuptype":"rune", "type":"script", "script": 1599, "offset": 553, "level":5, "item":53, "pickupScript": [1370, 0, 0, 10], "pickupIndex": 10},
+		{"name":"Aretak", "model": 24, "pickuptype":"rune", "type":"script", "script": 2498, "offset": 46, "level":6, "item":45, "pickupScript": [1371, 0, 0, 11], "pickupIndex": 11},
+		{"name":"Santak", "model": 25, "pickuptype":"rune", "type":"script", "script": 1868, "offset": 46, "level":4, "item":54, "pickupScript": [1372, 0, 0, 12], "pickupIndex": 12},
+		{"name":"Pargon", "model": 12, "pickuptype":"rune", "type":"script", "script": 1374, "offset": 37, "level":7, "item":52, "pickupScript": [1373, 0, 0, 13], "pickupIndex": 13},
+		{"name":"3 Circle", "model": 27, "pickuptype":"rune", "type":"npc", "npc": 3, "offset": 1, "level":3, "item":43, "pickupScript": [2129, 0xe3, 5, 16], "pickupIndex": 16},
+		{"name":"5 Circle", "model": 28, "pickuptype":"rune", "type":"npc", "npc": 7, "offset": 12, "level":7, "item":42, "pickupScript":  [1375, 0, 0, 17], "pickupIndex": 17},
+		{"name":"7 Circle", "model": 29, "pickuptype":"rune", "type":"npc", "npc": 10, "offset": 6, "level":10, "item":41, "pickupScript": [[1376, 0, 0, 18], [2692, 0xb8, 1, 18]], "pickupIndex": 18},
+		{"name":"Antorbok Codex", "model": 242, "pickuptype":"codex", "type":"npc", "npc": 3, "offset": 9, "level":3, "item":225},
+		{"name":"Aretak Codex", "model": 243, "pickuptype":"codex", "type":"npc", "npc": 6, "offset": 2, "level":6, "item":225},
+		{"name":"Bankorok Codex", "model": 244, "pickuptype":"codex", "type":"npc", "npc": 5, "offset": 16, "level":5, "item":225},
+		{"name":"Chattur'gha Codex", "destName": "Karim's aligned codex", "model": 245, "pickuptype":"codex", "type":"alignednpc", "npc": 4, "offset": 0, "level":[3, 4, 5], "item":225},
+		{"name":"Magormor Codex", "model": 246, "pickuptype":"codex", "type":"npc", "npc": 3, "offset": 2, "level":3, "item":225},
+		{"name":"Mantorok Codex", "model": 247, "pickuptype":"codex", "type":"npc", "npc": 6, "offset": 0, "level":6, "item":225},
+		{"name":"Narokath Codex", "model": 248, "pickuptype":"codex", "type":"npc", "npc": 4, "offset": 0, "level":4, "item":225},
+		{"name":"Nethlek Codex", "model": 249, "pickuptype":"codex", "type":"npc", "npc": 6, "offset": 8, "level":6, "item":225},
+		{"name":"Pargon Codex", "model": 250, "pickuptype":"codex", "type":"npc", "npc": 7, "offset": 8, "level":7, "item":225},
+		{"name":"Redgormor Codex", "model": 251, "pickuptype":"codex", "type":"npc", "npc": 5, "offset": 8, "level":5, "item":225},
+		{"name":"Santak Codex", "model": 252, "pickuptype":"codex", "type":"npc", "npc": 4, "offset": 4, "level":4, "item":225},
+		{"name":"Tier Codex", "model": 253, "pickuptype":"codex", "type":"npc", "npc": 6, "offset": 10, "level":6, "item":225},
+		{"name":"Ulyaoth Codex", "destName":"Max's aligned codex", "model": 254, "pickuptype":"codex", "type":"alignednpc", "npc": 5, "offset": 0, "level":[3, 4, 5], "item":225},
+		{"name":"Xel'lotath Codex", "destName":"Anthony's aligned codex", "model": 255, "pickuptype":"codex", "type":"alignednpc", "npc": 3, "offset": 0, "level":[3, 4, 5], "item":225},
+		{"name":"Enchant Item", "model": 0x20, "pickuptype":"scroll", "type":"npc", "npc": 3, "offset": 8, "level":3, "item":71},
+		{"name":"Recover", "model": 0x21, "pickuptype":"scroll", "type":"npc", "npc": 4, "offset": 5, "level":4, "item":71},
+		{"name":"Damage Field", "model": 0x22, "pickuptype":"scroll", "type":"npc", "npc": 5, "offset": 14, "level":5, "item":71},
+		{"name":"Bind", "model": 0x23, "pickuptype":"scroll", "type":"npc", "npc": 11, "offset": 11, "level":11, "item":71},
+		{"name":"Shield", "model": 0x24, "pickuptype":"scroll", "type":"npc", "npc": 7, "offset": 10, "level":7, "item":71},
+		{"name":"Dispel Magic", "model": 0x25, "pickuptype":"scroll", "type":"npc", "npc": 6, "offset": 11, "level":6, "item":71},
+		{"name":"Magickal Attack", "model": 0x27, "pickuptype":"scroll", "type":"npc", "npc": 10, "offset": 24, "level":10, "item":71},
+		{"name":"Summon Trapper", "model": 0x28, "pickuptype":"scroll", "type":"npc", "npc": 6, "offset": 3, "level":6, "item":71},
+		{"name":"Summon Horror", "model": 0x29, "pickuptype":"scroll", "type":"npc", "npc": 9, "offset": 11, "level":9, "item":71},
+		{"name":"Summon Zombie", "model": 0x2a, "pickuptype":"scroll", "type":"npc", "npc": 8, "offset": 6, "level":8, "item":71},
+		{"name":"Reveal Invisible", "model": 0x2b, "pickuptype":"scroll", "type":"npc", "npc": 5, "offset": 12, "level":5, "item":71},
+		{"name":"Magick Pool", "model": 0x2c, "pickuptype":"scroll", "type":"npc", "npc": 9, "offset": 7, "level":9, "item":71},
 	];
 
-	var scrollNames=[
-		"Enchant Item",//0x20
-		"Recover",
-		"Damage Field",
-		"Bind",
-		"Shield",
-		"Dispel Magic",
-		null,
-		"Magickal Attack",
-		"Summon Trapper",
-		"Summon Horror",
-		"Summon Zombie",
-		"Reveal Invisible",
-		"Magick Pool",
-	];
-
-	var codexNames=[
-		"Antorbok Codex",   //0xf2
-		"Aretak Codex",     //0xf3
-		"Bankorok Codex",   //0xf4
-		"Chattur'gha Codex",//0xf5
-		"Magormor Codex",   //0xf6
-		"Mantorok Codex",   //0xf7
-		"Narokath Codex",   //0xf8
-		"Nethlek Codex",    //0xf9
-		"Pargon Codex",     //0xfa
-		"Redgormor Codex",  //0xfb
-		"Santak Codex",     //0xfc
-		"Tier Codex",       //0xfd
-		"Ulyaoth Codex",    //0xfe
-		"Xel'lotath Codex"  //0xff
-	];
-
-	const getRollName=(roll)=>{
-		if(roll[0]==0){
-			return runeNames[roll[1]];
-		}else if(roll[0]==1){
-			return scrollNames[roll[1]-32];
-		}else if(roll[0]==2){
-			return codexNames[roll[1]-242];
-		}
-	}
-
-	var rand=[];
-
-	//runes
-	for(var i=0; i<14; i++){
-		rand.push([0, i]);
-	}
-	for(var i=16; i<19; i++){
-		rand.push([0, i]);
-	}
-
-	var scrollModels=[];
-
-	//scrolls
-	for(var i=32; i<45; i++){
-		if(i==38){
-			continue;
-		}
-
-		rand.push([1, i]);
-		scrollModels.push(i);
-	}
-
-	var codexModels=[];
-
-	//codices
-	for(var i=242; i<256; i++){
-		rand.push([2, i]);
-		codexModels.push(i);
-	}
-
+	var rand=pool.slice(0);
 	shuffle(rand);
 
-	var i=0;
-	for(var scripts of runeScripts){
-		var roll=rand[i++];
-		if(!Array.isArray(scripts[0])){
-			scripts=[scripts];
-		}
-
-		for(var script of scripts){
-
-			if(roll[0]===0){
-				modifyScript(iso, script[0], (s)=> {
-					s.instructions[script[1]+1]=s.buildInstruction("PUSHINT", 1<<roll[1]);
-				});
-			}else if(roll[0]===1){
-				modifyScript(iso, script[0], (s)=>{
-					s.addJmpPatch(script[1], [script[1]+3], [
-						["GETGLOBAL", "ed73"],
-						["PUSHINT", roll[1]],
-						["PUSHINT", 65536],
-						["CALL", script[2], 0]
-					]);
-				});
-			}else if(roll[0]===2){
-				modifyScript(iso, script[0], (s)=>{
-					s.instructions[script[1]]=s.buildInstruction("GETGLOBAL", "ed72");
-					s.instructions[script[1]+1]=s.buildInstruction("PUSHINT", roll[1]);
-				});
-			}else{
-				throw "Bad reward type";
-			}
-		}
-		log.addLine({"originalName": getRollName([0, scripts[0][3]]), "newName": getRollName(roll), "original": [0, scripts[0][3]], "new":roll}, "Runes", "magic_pickup_change");
-	}
-
-	const addRollCode=(code, model, roll)=>{
+	const addRollCode=(code, roll)=>{
 		code.push(["GETLOCAL", 1]);
-		code.push(["PUSHINT", model]);
-		code.push(["JMPNE", roll[0]==1 ? 5 : 4]);
+		code.push(["PUSHINT", roll["model"]]);
+		code.push(["JMPNE", roll["pickuptype"]=="scroll" ? 5 : 4]);
 
-		if(roll[0]===0){
+		if(roll["pickuptype"]==="rune"){
 			code.push(["GETGLOBAL", "ed10"]);
-			code.push(["PUSHINT", 1<<roll[1]]);
+			code.push(["PUSHINT", 1<<roll["pickupIndex"]]);
 			code.push(["CALL", 2, 0]);
 			code.push("REJOIN");
-		}else if(roll[0]===1){
+		}else if(roll["pickuptype"]==="scroll"){
 			code.push(["GETGLOBAL", "ed73"]);
-			code.push(["PUSHINT", roll[1]]);
+			code.push(["PUSHINT", roll["model"]]);
 			code.push(["PUSHINT", 65536]);
 			code.push(["CALL", 2, 0]);
 			code.push("REJOIN");
-		}else if(roll[0]===2){
+		}else if(roll["pickuptype"]==="codex"){
 			code.push(["GETGLOBAL", "ed72"]);
-			code.push(["PUSHINT", roll[1]]);
+			code.push(["PUSHINT", roll["model"]]);
 			code.push(["CALL", 2, 0]);
 			code.push("REJOIN");
 		}else{
@@ -748,28 +631,86 @@ function randomizeRunes(iso, log){
 
 	var code=[];
 
-	for(var model of codexModels){
-		var roll=rand[i++];
-		addRollCode(code, model, roll);
+	for(var i in pool){
+		var roll=rand[i];
+		var dest=pool[i];
 
-		log.addLine({"originalName": getRollName([2, model]), "newName": getRollName(roll), "original": [2, model], "new":roll}, "Runes", "magic_pickup_change");
+		if(dest["pickuptype"]=="rune"){
+			var scripts=dest["pickupScript"];
+			if(!Array.isArray(scripts[0])){
+				scripts=[scripts];
+			}
+	
+			for(var script of scripts){
 
+				if(roll["pickuptype"]==="rune"){
+					modifyScript(iso, script[0], (s)=> {
+						s.instructions[script[1]+1]=s.buildInstruction("PUSHINT", 1<<roll["pickupIndex"]);
+					});
+				}else if(roll["pickuptype"]==="scroll"){
+					modifyScript(iso, script[0], (s)=>{
+						s.addJmpPatch(script[1], script[1]+3, [
+							["GETGLOBAL", "ed73"],
+							["PUSHINT", roll["model"]],
+							["PUSHINT", 65536],
+							["CALL", script[2], 0]
+						]);
+					});
+				}else if(roll["pickuptype"]==="codex"){
+					modifyScript(iso, script[0], (s)=>{
+						s.instructions[script[1]]=s.buildInstruction("GETGLOBAL", "ed72");
+						s.instructions[script[1]+1]=s.buildInstruction("PUSHINT", roll["model"]);
+					});
+				}else{
+					throw "Bad reward type";
+				}
+			}
+		}else{
+			addRollCode(code, roll);
+		}
+		
+		if(dest["type"]==="npc"){
+			var npc=iso.getFile("Npcs"+dest["npc"]+".npc").asParsed();
+			
+			var d=new DataView(npc.entries[2][dest["offset"]]);
+			d.setUint16(28, roll["model"], false);
+		}else if(dest["type"]==="alignednpc"){
+			var npc=iso.getFile("Npcs"+dest["npc"]+".npc").asParsed();
+			
+			var d=new DataView(npc.entries[4][dest["offset"]]);
+			d.setUint16(32, roll["model"], false);
+			d.setUint16(40, roll["model"], false);
+			d.setUint16(48, roll["model"], false);
+		}else if(dest["type"]==="script"){
+			modifyScript(iso, dest["script"], (lua)=>{
+				lua.instructions[dest["offset"]+2]=lua.buildInstruction("PUSHINT", roll["model"]);
+			});
+		}else{
+			throw "Bad type";
+		}
+
+
+		log.addLine({"originalName": dest["destName"] ? dest["destName"] : dest["name"], "newName": roll["name"], "original": dest, "new":roll}, "Runes", "magic_pickup_change");
+		
+		var sourceLevel=roll["level"];
+		
+		if(Array.isArray(sourceLevel)){
+			sourceLevel=sourceLevel[0];
+		}
+		
+		var destLevels=dest["level"];
+		
+		if(!Array.isArray(destLevels)){
+			destLevels=[destLevels];
+		}
+		for(var destLevel of destLevels){
+			copyItem(iso, sourceLevel, destLevel, roll["model"]);
+		}
 	}
 
 	modifyScript(iso, 1985, (s)=>{
 		s.addJmpPatch(6, 9, code);
 	});
-
-	code=[];
-	var sIndex=0;
-
-	for(var model of scrollModels){
-		var roll=rand[i++];
-		addRollCode(code, model, roll);
-		log.addLine({"originalName": getRollName([1, (sIndex>=6? sIndex+1 : sIndex)+0x20]), "newName": getRollName(roll), "original": [1, (sIndex>=6? sIndex+1 : sIndex)+0x20], "new":roll}, "Runes", "magic_pickup_change");
-
-		sIndex++;
-	}
 
 	modifyScript(iso, 2022, (s)=>{
 		s.addJmpPatch(6, 10, code);
@@ -1026,7 +967,7 @@ function buildRuneGate(runes){
 
 function examineCirclesFromScripts(iso, continuation=false){
 	//fn214
-	loadAsset("./scriptCircle.bin", (code)=>{
+	loadAsset("./assets/scriptCircle.bin", (code)=>{
 		iso.dol.overwrite(0x80176eac, code, [0x4, 0x40]);
 
 		if(continuation){
@@ -1143,30 +1084,21 @@ function addChapterEndRuneGates(iso, log){
 }
 
 function copyAlexItemsToPiousFight(iso){
-	var alex=new GPK(decompressSKASC(iso.getFile("Level00.bin")), true);
-	var pious=new GPK(decompressSKASC(iso.getFile("Level13.bin")), true);
+	var alex=iso.getFile("Level00.bin").asParsed();
+	var pious=iso.getFile("Level13.bin").asParsed();
 
-	var alexInv=new GPK(alex.entries[2], true);
-	var piousInv=new GPK(pious.entries[2], true);
-
-	var alexModels=new GPK(alex.entries[1], true);
-	var piousModels=new GPK(pious.entries[1], true);
-
-	for(var i in alexModels.entries){
-		if(!alexModels.entries[i] || (piousInv.entries[i] && piousModels.entries[i])){
+	for(var i in alex.entries[1].entries){
+		if(!alex.entries[1].entries[i] || (pious.entries[1].entries[i] && pious.entries[2].entries[i])){
 			continue;
 		}
 		
-		if(alexInv.entries[i]){
-			piousInv.entries[i]=alexInv.entries[i];
+		if(alex.entries[2].entries[i]){
+			pious.entries[2].entries[i]=alex.entries[2].entries[i];
 		}
-		piousModels.entries[i]=alexModels.entries[i];
+		pious.entries[1].entries[i]=alex.entries[1].entries[i];
 	}
 
-	pious.entries[2]=piousInv;
-	pious.entries[1]=piousModels;
-
-	iso.getFile("Level13.bin").replace(pious);
+	//iso.getFile("Level13.bin").replace(pious);
 }
 
 function removeSpellGates(iso, log){

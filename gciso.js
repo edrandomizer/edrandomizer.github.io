@@ -335,60 +335,48 @@ class DOL {
 }
 
 class File{
-	constructor(buffer){
+	constructor(buffer, parser=null){
 		this.buffer=asBuf(buffer);
-		this.data=new DataView(this.buffer);
+		this.parser=parser;
+		this.parsed=null;
 	}
 
-	read4(offset){
-		return this.data.getUint32(offset, false);
-	}
-
-	read2(offset){
-		return this.data.getUint16(offset, false);
-	}
-
-	read(offset){
-		return this.data.getUint8(offset, false);
-	}
-
-	write4(offset, value){
-		if(value<0){
-			this.data.setInt32(offset, value, false);
-		}else{
-			this.data.setUint32(offset, value, false);
+	asParsed(){
+		if(this.parsed!==null){
+			return this.parsed;
 		}
-	}
 
-	write2(offset, value){
-		if(value<0){
-			this.data.setInt16(offset, value, false);
-		}else{
-			this.data.setUint16(offset, value, false);
+		if(!this.parser){
+			throw "This file has no manifest entry";
 		}
-	}
 
-	write(offset, value){
-		if(value<0){
-			this.data.setInt8(offset, value, false);
-		}else{
-			this.data.setUint8(offset, value, false);
-		}
+		this.parsed=this.parser(this.buffer);
+		this.buffer=null;
+		return this.parsed;
 	}
 
 	replace(buffer){
 		this.buffer=asBuf(buffer);
-		this.data=new DataView(this.buffer);
+		this.parsed=null;
+	}
+	
+	replaceParsed(parsed){
+		this.parsed=parsed;
+		this.buffer=null;
 	}
 
 	toBuffer(){
+		if(this.parsed!==null){
+			return this.parsed.toBuffer();
+		}
 		return this.buffer;
 	}
 
 }
 
 class FST{
-	constructor(buffer, offset, size){
+	constructor(buffer, offset, size, manifest={}){
+	
 		buffer=asBuf(buffer);
 		const raw=new DataView(buffer);
 
@@ -448,7 +436,7 @@ class FST{
 			entries[ent].name=str;
 
 			if(entries[ent].type=="file"){
-				entries[ent].file=new File(buffer.slice(entries[ent].offset, entries[ent].offset+entries[ent].len));
+				entries[ent].file=new File(buffer.slice(entries[ent].offset, entries[ent].offset+entries[ent].len), manifest[str]);
 
 				entries[ent].align=32*1024;
 
@@ -524,6 +512,27 @@ class FST{
 
 		return size+stringSize;
 	}
+	
+	getEntrySize(entry, offset=0, seen=[]){
+
+		if(entry.type=="file"){
+			var buffer=entry.file.toBuffer();
+			
+			if(seen.indexOf(buffer)!==-1){
+				return [offset, seen];
+			}
+			offset=offset+(entry.align-1)& ~(entry.align-1);
+
+			seen.push(buffer);
+
+			return [offset+buffer.byteLength, seen];
+		}else{
+			for(var ent of entry.entries){
+				[offset, seen]=this.getEntrySize(ent, offset, seen);
+			}
+			return [offset, seen];
+		}
+	}
 
 	writeEntryToBuffer(buffer, offset, entryOffset, stringsBase, stringsOffset, fileOffset, parentOffset, entry, filesWritten){
 		var initial=entryOffset;
@@ -553,15 +562,18 @@ class FST{
 				if(fileOffset % entry.align!=0){
 					fileOffset=fileOffset+entry.align - (fileOffset % entry.align);
 				}
+				
+				var fileBuffer=entry.file.toBuffer();
+				entry.file.replace(fileBuffer);
 
 				data.setUint32(offset+(entryOffset*12)+4, fileOffset, false);
-				data.setUint32(offset+(entryOffset*12)+8, entry.file.buffer.byteLength, false);
+				data.setUint32(offset+(entryOffset*12)+8, fileBuffer.byteLength, false);
 
-				writeBuffer(entry.file.buffer, buffer, fileOffset);
+				writeBuffer(fileBuffer, buffer, fileOffset);
 
-				filesWritten.push([entry.file.buffer, fileOffset, entry.file.buffer.byteLength]);
+				filesWritten.push([fileBuffer, fileOffset, fileBuffer.byteLength]);
 
-				fileOffset+=entry.file.buffer.byteLength;
+				fileOffset+=fileBuffer.byteLength;
 			}
 
 			entryOffset++;
@@ -630,11 +642,8 @@ class Header{
 
 class GCISO {
 
-	constructor(buffer){
-
-		this.imageSize=1459978240;
-
-		if(buffer.byteLength!=this.imageSize){
+	constructor(buffer, manifest={}){
+		if(buffer.byteLength!=1459978240){
 			console.log("Bad file size, are you sure this is a gamecube iso?");
 		}
 		buffer=asBuf(buffer);
@@ -642,8 +651,12 @@ class GCISO {
 
 		this.dol=new DOL(buffer.slice(this.header.dolOffset));
 
-		this.fst=new FST(buffer, this.header.fstOffset, this.header.fstSize);
+		this.fst=new FST(buffer, this.header.fstOffset, this.header.fstSize, manifest);
 
+	}
+
+	getSize(){
+		return this.fst.getEntrySize(this.fst.root, this.header.fstOffset+this.fst.getSize());
 	}
 
 	getFile(name){
@@ -651,14 +664,14 @@ class GCISO {
 	}
 
 	toBuffer(){
-
-		var ret=new ArrayBuffer(this.imageSize);
+		var size=this.getSize()[0];
 		this.header.rebuild(this);
+
+
+		var ret=new ArrayBuffer(size);
 		var c=this.header.writeToBuffer(ret, 0);
 		c=this.dol.writeToBuffer(ret, this.header.dolOffset);
-
 		c=this.fst.writeToBuffer(ret, this.header.fstOffset);
-		console.log("Free space: "+(this.imageSize-c));
 		return ret;
 	}
 }

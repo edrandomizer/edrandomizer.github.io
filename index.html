@@ -46,8 +46,9 @@
     </div>
     <div id="message"></div>
     <div id="options">
+		You must enable extended memory in Dolphin via Options -> Configuation -> Advanced -> Enable Emulated Memory Size Override. Then slide the bars all the way to the right.  <br />
 		<input type="checkbox" id="text_control"  checked="checked" />Randomize text<br />
-		<select id="enemy_control"><option selected="selected">Experimental</option><option>Safe</option><option>None</option></select> Randomize enemies. <br />If you choose experimental you must enable extended memory in Dolphin via Options -> Configuation -> Advanced -> Enable Emulated Memory Size Override. Then slide the bars all the way to the right.  <br />
+		<input type="checkbox" id="enemy_control" checked="checked" /> Randomize enemies<br />
 		<input type="checkbox" id="rune_control" checked="checked" />Randomize rune/codex/scroll locations<br />
 		<input type="checkbox" id="gate_control" checked="checked" />Remove spell gates<br />
 		<input type="checkbox" id="melee_weapon_control" checked="checked" />Randomize melee weapons<br />
@@ -71,6 +72,8 @@
 			ele.click();
 			document.body.removeChild(ele);
 		}
+		
+		var version=1;
 
 		var iso=null;
 		var manualMode=false;
@@ -108,7 +111,7 @@
 
 				displayMessage("Analyzing");
 				window.setTimeout(function(){
-					var niso=new GCISO(file);
+					var niso=new GCISO(file, getEDManifest());
 
 					if(manualMode){
 						iso=niso;
@@ -128,7 +131,6 @@
 								compressionBypassNeeded=true;
 								memoryExtensionNeeded=true;
 								deleteUnused(niso);
-								stripFMV(niso);
 								randomizeMeleeWeapons(niso, randomLog);
 							}
 
@@ -136,6 +138,7 @@
 								compressionBypassNeeded=true;
 								memoryExtensionNeeded=true;
 								floatingItemsNeeded=true;
+								bpeExtensionNeeded=true;
 								randomLog.addLine("Randomizing enemies", "General");
 								randomizeEnemies(niso, randomLog, [//TODO move this data structure
 								null, //alex
@@ -149,11 +152,8 @@
 								],
 								[
 								null, null, null, null, null, null, null, null, null, [null, null, null, [8,9,10]],//edward's caged enemies
-								],
-								document.getElementById("enemy_control").value==="Experimental");
-								if(document.getElementById("enemy_control").value==="Experimental"){
-									bpeExtensionNeeded=true;
-								}
+								]);
+								
 							}
 							if(document.getElementById("rune_control").checked){
 								randomLog.addLine("Randomizing runes", "General");
@@ -221,8 +221,8 @@
 								displayMessage("Rebuilding");
 								window.setTimeout(function(){
 									var buf=niso.toBuffer();
-									displayMessage("Preparing download");
-									download(buf,  "ED.random."+(seed.toString(16))+".iso");
+									displayMessage("Preparing file");
+									download(buf,  "ED.random."+(seed.toString(16))+"."+version+".iso");
 									randomLog.writeToPage();
 									c();
 								}, 1);

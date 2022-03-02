@@ -1,82 +1,4 @@
 
-class CPK {
-	constructor(buffer){
-		if(!buffer){
-			this.entries=[];
-			return;
-		}
-		buffer=asBuf(buffer);
-
-		const raw=new DataView(buffer);
-
-		if(raw.getUint32(0, false)!=0x2 || raw.getUint32(4, false)!=0x20){
-			throw "Bad magic number in CPK";
-		}
-
-		this.magic=raw.getUint32(8, false);
-		var count=raw.getUint32(0x10, false);
-
-		var headerOffset=raw.getUint32(0x14, false);
-
-		var entries=[];
-
-		for(var i=0; i<count; i++){
-
-			var offset=raw.getUint32(headerOffset+(i*0x10), false);
-			var size=raw.getUint32(headerOffset+0x4+(i*0x10), false);
-
-			var buf=buffer.slice(offset, offset+size);
-
-			entries[i]=[
-				raw.getUint16(headerOffset+0x8+(i*0x10) , false),
-				buf
-			];
-		}
-		this.entries=entries;
-	}
-
-	getSize(){
-		var size=0x20;
-		size+=this.entries.length*0x10;
-		for(var ent of this.entries){
-			size+=ent[1].byteLength;
-		}
-		return size;
-	}
-
-	toBuffer(){
-		const buf=new ArrayBuffer(this.getSize());
-		const arr=new Uint8Array(buf);
-
-		const d=new DataView(buf);
-
-		d.setUint32(0, 2, false);
-		d.setUint32(4, 0x20, false);
-		d.setUint32(8, this.magic, false);
-		d.setUint32(0x10, this.entries.length, false);
-		d.setUint32(0x14, 0x20, false);
-
-		var i=0;
-		var curOffset=0x20+this.entries.length*0x10;
-
-		for(var anim of this.entries){
-
-			d.setUint32(0x20+(i*0x10), curOffset, false);
-			d.setUint32(0x24+(i*0x10), anim[1].byteLength, false);
-			d.setUint16(0x28+(i*0x10), anim[0], false);
-
-			arr.set(new Uint8Array(anim[1]), curOffset);
-
-			d.setUint32(curOffset, this.magic, false);
-
-			curOffset+=anim[1].byteLength;
-
-			i++;
-		}
-		return buf;
-	}
-}
-
 class NPC{
 	constructor(buffer){
 
@@ -288,7 +210,6 @@ class GPK{
 			alignment=0x100000;
 		}
 
-		var limit=0;
 
 		var i=0;
 		while(i<entryCount){
@@ -310,9 +231,6 @@ class GPK{
 
 						if(sSize!=0 && sOffset!=0){
 							strings[j]=buffer.slice(offset+sOffset, offset+sOffset+sSize);
-							if(limit<offset+sOffset+size){
-								limit=offset+sOffset+size;
-							}
 						}
 
 						j++;
@@ -334,9 +252,6 @@ class GPK{
 					if(!found){
 						this.entries[i]=buffer.slice(offset, offset+size);
 						seen.push([offset, size, this.entries[i]]);
-						if(limit<offset+size){
-							limit=offset+size;
-						}
 						while(offset % alignment!=0){
 							alignment/=2;
 						}
@@ -348,9 +263,6 @@ class GPK{
 
 		this.alignment=alignment;
 
-		if(limit!=buffer.byteLength){
-			console.log("Warning! GPK files data exceeds its bounds. Data may be missing.");
-		}
 	}
 
 	getSize(){
@@ -917,11 +829,13 @@ function findScript(iso, script){
 			continue;
 		}
 
-		var f=iso.fst.getFile("ScrLvl"+("00"+i).slice(-2)+".gpk");
-		var g=new GPK(f);
+		var g=iso.fst.getFile("ScrLvl"+("00"+i).slice(-2)+".gpk").asParsed();
 
 		if(g.entries[script]){
-			return new LUA(g.entries[script]);
+			if(!(g.entries[script] instanceof LUA)){
+				g.entries[script]=new LUA(g.entries[script]);
+			}
+			return g.entries[script];
 		}
 
 		i++;
@@ -939,14 +853,12 @@ function replaceScript(iso, script, lua){
 			continue;
 		}
 
-		var f=iso.fst.getFile("ScrLvl"+("00"+i).slice(-2)+".gpk");
-		var g=new GPK(f);
+		var g=iso.fst.getFile("ScrLvl"+("00"+i).slice(-2)+".gpk").asParsed();
 
 		if(g.entries[script]){
 			g.entries[script]=lua;
 		}
 
-		f.replace(g.toBuffer());
 		i++;
 	}
 }
@@ -959,7 +871,7 @@ function prepare(iso){
 
 function bypassCompression(iso, continuation){
 
-	loadAsset("./compressionBypass.bin", function(code){
+	loadAsset("./assets/compressionBypass.bin", function(code){
 		iso.dol.inject(0x80147e4c, code, [0x14, 0x34, 0x64, 0x9c, 0xb0]);
 		if(continuation){
 			continuation();
@@ -969,13 +881,13 @@ function bypassCompression(iso, continuation){
 }
 
 function extendBPE(iso, continuation){
-	loadAsset("./bpe/allocate.bin", function(code){
+	loadAsset("./assets/bpe/allocate.bin", function(code){
 		iso.dol.inject(0x80024b5c, code, [0x8]);
-		loadAsset("./bpe/free.bin", function(code){
+		loadAsset("./assets/bpe/free.bin", function(code){
 			iso.dol.inject(0x8015e7a8, code, []);
-			loadAsset("./bpe/read.bin", function(code){
+			loadAsset("./assets/bpe/read.bin", function(code){
 				iso.dol.inject(0x80139bbc, code, [0x2c, 0x30]);
-				loadAsset("./bpe/suballocate.bin", function(code){
+				loadAsset("./assets/bpe/suballocate.bin", function(code){
 					iso.dol.inject(0x8015e7fc, code, [], true);
 					if(continuation){
 						continuation();
@@ -987,7 +899,7 @@ function extendBPE(iso, continuation){
 }
 
 function bigLevel(iso, models=null){
-	var common=new GPK(decompressSKASC(iso.getFile("NPCCom.gpk")), true);
+	var common=iso.getFile("NPCCom.gpk").asParsed();
 
 	var levels=[];
 
@@ -995,8 +907,8 @@ function bigLevel(iso, models=null){
 		if(i==12){
 			continue;
 		}
-		var lGpk=new GPK(decompressSKASC(iso.getFile("Level"+("00"+i).slice(-2)+".bin")), true);
-		levels.push([new GPK(lGpk.entries[0], true), lGpk, i ]);
+		var lGpk=iso.getFile("Level"+("00"+i).slice(-2)+".bin").asParsed();
+		levels.push([lGpk.entries[0], lGpk, i ]);
 	}
 
 	if(models===null){
@@ -1017,12 +929,6 @@ function bigLevel(iso, models=null){
 		}
 	}
 
-	for(var lvl of levels){
-		lvl[1].entries[0]=lvl[0];
-		iso.getFile("Level"+("00"+lvl[2]).slice(-2)+".bin").replace(lvl[1]);
-	}
-
-
 	//npccom.gpk
 	var newSize=common.getSize()+64;
 
@@ -1033,8 +939,6 @@ function bigLevel(iso, models=null){
 	iso.dol.write2(0x80042b6e, newSize&0xffff);
 	iso.dol.write2(0x80042b62, (newSize>>>16)&0xffff);
 	iso.dol.write2(0x80042b6c, 0x60c3);
-
-	iso.getFile("NPCCom.gpk").replace(common);
 
 }
 
@@ -1071,9 +975,9 @@ function extendMemorySizes(iso, continuation){
 
 	iso.dol.write4(0x80037500,  0x549f1b78);
 
-	loadAsset("./loadingMemory.bin", (code)=>{
+	loadAsset("./assets/loadingMemory.bin", (code)=>{
 		iso.dol.overwrite(0x80139c1c, code, [0x2c]);
-		loadAsset("./loadingAllocate.bin", (code)=>{
+		loadAsset("./assets/loadingAllocate.bin", (code)=>{
 			iso.dol.inject(0x80024b18, code, [0x4]);
 			if(continuation){
 				continuation();
@@ -1083,7 +987,7 @@ function extendMemorySizes(iso, continuation){
 }
 
 function addMemoryDebugging(iso, continuation){
-	loadAsset("./debug.bin", function(code){
+	loadAsset("./assets/debug.bin", function(code){
 		iso.dol.inject(0x8017ce54, code);
 		if(continuation){
 			continuation();
@@ -1114,13 +1018,12 @@ function mergeScriptArchives(iso){
 		}
 	}
 
-	var buf=asBuf(main);
 	for(var i=-1; i<17; i++){
 		if(i==14 || i==15){
 			continue;
 		}
 
-		iso.getFile("ScrLvl"+("00"+i).slice(-2)+".gpk").replace(buf);
+		iso.getFile("ScrLvl"+("00"+i).slice(-2)+".gpk").replaceParsed(main);
 	}
 
 	//disable async loading of scripts
@@ -1152,7 +1055,7 @@ function mergeRoomText(iso, continuation=false){
 	iso.dol.write2(0x80043806, 0x2);
 	iso.dol.write4(0x80043808, 0x808d9b80);
 
-	loadAsset("./textMemory.bin", (code)=>{
+	loadAsset("./assets/textMemory.bin", (code)=>{
 		iso.dol.inject(0x80024b20, code, [0x8]);
 		if(continuation){
 			continuation();
@@ -1161,7 +1064,7 @@ function mergeRoomText(iso, continuation=false){
 }
 
 function fixFloatingItems(iso, continuation=false){
-	loadAsset("./floatingItems.bin", (code)=>{
+	loadAsset("./assets/floatingItems.bin", (code)=>{
 		iso.dol.inject(0x800e0874, code, [0xc, 0x28]);
 		if(continuation){
 			continuation();
@@ -1217,26 +1120,23 @@ function copyNPC(iso, source, dest){
 }
 
 function copyItem(iso, sourceLevel, destLevel, id){
-	var sourcel=new GPK(decompressSKASC(iso.getFile("Level"+("00"+sourceLevel).slice(-2)+".bin"), true));
-	var destl=new GPK(decompressSKASC(iso.getFile("Level"+("00"+destLevel).slice(-2)+".bin")), true);
+	var sourcel=iso.getFile("Level"+("00"+sourceLevel).slice(-2)+".bin").asParsed();
+	var destl=iso.getFile("Level"+("00"+destLevel).slice(-2)+".bin").asParsed();
 
-	var s1=new GPK(sourcel.entries[1], true);
-	var s2=new GPK(sourcel.entries[2], true);
+	if(!sourcel.entries[1].entries[id]){
+		throw "Could not find item "+id+" in level "+level;
+	}
 
-	var d1=new GPK(destl.entries[1], true);
-	var d2=new GPK(destl.entries[2], true);
+	destl.entries[1].entries[id]=sourcel.entries[1].entries[id];
+	if(sourcel.entries[2].entries[id]){
+		destl.entries[2].entries[id]=sourcel.entries[2].entries[id];
+	}
 
-	d1.entries[id]=s1.entries[id];
-	d2.entries[id]=s2.entries[id];
-
-	destl.entries[1]=d1;
-	destl.entries[2]=d2;
-
-	iso.getFile("Level"+("00"+destLevel).slice(-2)+".bin").replace(destl);
+//	iso.getFile("Level"+("00"+destLevel).slice(-2)+".bin").replace(destl);
 }
 
 function changeWeaponAnimations(iso, weapon, animation){
-	var invu=new GPK(iso.getFile("InvU.bin"));
+	var invu=iso.getFile("InvU.bin").asParsed();
 
 	var entry=new DataView(invu.entries[weapon][0]);
 
@@ -1247,7 +1147,7 @@ function changeWeaponAnimations(iso, weapon, animation){
 	entry.setUint16(0x3e, animation+4);
 	entry.setUint16(0x40, animation+5);
 
-	iso.getFile("InvU.bin").replace(invu);
+	//iso.getFile("InvU.bin").replace(invu);
 }
 
 function copyCharacter(iso, sourceLevel, destLevel, id){
@@ -1426,4 +1326,54 @@ function decompressText(compressed, decompressedLength=0){
 	var od=new Uint8Array(view);
 	view=view.slice(0, od.indexOf(0));
 	return String.fromCharCode.apply(String, view);
+}
+
+function getEDManifest(){
+
+	const levelParser=(buffer)=>{
+		var full=new GPK(decompressSKASC(buffer), true);
+		for(var i in full.entries){
+			if(i>=3){
+				break;
+			}
+			full.entries[i]=new GPK(full.entries[i], true);
+		}
+		return full;
+	};
+	
+	const gpkParser=(buffer)=>{
+		return new GPK(buffer);
+	};
+	
+	const npcParser=(buffer)=>{
+		return new NPC(buffer);
+	};
+
+	const npccomParser=(buffer)=>{
+		return new GPK(decompressSKASC(buffer), true);
+	};
+
+	const textParser=(buffer)=>{
+		return new GPK(decompressSKASC(buffer));
+	};
+
+	var res={
+		"InvU.bin": gpkParser,
+		"NPCCom.gpk": npccomParser,
+	};
+	
+	for(var i=0; i<14; i++){
+		if(i==12){
+			continue;
+		}
+
+		res["Level"+("00"+i).slice(-2)+".bin"]=levelParser;
+		res["RmTxt"+("00"+i).slice(-2)+".cmp"]=textParser;
+		res["Npcs"+i+".npc"]=npcParser;
+		res["ScrLvl"+("00"+i).slice(-2)+".gpk"]=gpkParser;
+
+	}
+
+	return res;
+
 }
