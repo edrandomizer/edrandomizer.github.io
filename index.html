@@ -73,7 +73,7 @@
 			document.body.removeChild(ele);
 		}
 		
-		var version=1;
+		var version=2;
 
 		var iso=null;
 		var manualMode=false;
@@ -120,6 +120,7 @@
 						displayMessage("Patching. This may take some time.");
 						window.setTimeout(function(){
 							prepare(niso);
+							stripFMV(niso);
 							if(document.getElementById("text_control").checked){
 								randomLog.addLine("Randomizing room text", "General");
 								compressionBypassNeeded=true;
@@ -156,6 +157,9 @@
 								
 							}
 							if(document.getElementById("rune_control").checked){
+								compressionBypassNeeded=true;
+								memoryExtensionNeeded=true;
+								bpeExtensionNeeded=true;
 								randomLog.addLine("Randomizing runes", "General");
 								randomizeRunes(niso, randomLog);
 							}
